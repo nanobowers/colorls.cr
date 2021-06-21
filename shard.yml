@@ -1,0 +1,13 @@
+name: colorls
+version: 0.1.0
+
+authors:
+  - Ben Bowers <nanobowers@gmail.com>
+
+targets:
+  colorls:
+    main: src/colorls.cr
+
+crystal: 1.0.0
+
+license: MIT
