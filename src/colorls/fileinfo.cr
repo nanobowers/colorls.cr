@@ -3,7 +3,7 @@
 module Colorls
   class FileInfo
 
-    @show_name : String?
+    @show_name : String
     @path : String
     
     #extend Forwardable
@@ -17,26 +17,30 @@ module Colorls
       #@path = path.nil? ? File.join(parent, name) : path
       @path = File.join(parent, name)
       @stats = File.info(@path, follow_symlinks: false)
-      @show_name = nil
+      @show_name = "" # nil
 
-      @path.force_encoding(Colorls.file_encoding)
+      # TODO:
+      # @path.force_encoding(Colorls.file_encoding)
 
       handle_symlink(@path) if link_info && @stats.symlink?
     end
 
     def self.info(path : String, link_info=true)
-      FileInfo.new(name: File.basename(path), parent: File.dirname(path), path: path, link_info: link_info)
+      FileInfo.new(name: File.basename(path),
+                   parent: File.dirname(path),
+                   path: path, link_info: link_info)
     end
 
     def self.dir_entry(dir, child, link_info=true)
       FileInfo.new(name: child, parent: dir, link_info: link_info)
     end
 
-    def show
+    def show : String
       return @show_name unless @show_name.nil?
-
-      @show_name = @name.encode(Encoding.find("filesystem"), Encoding.default_external,
-                                invalid: :replace, undef: :replace)
+      @show_name = @name
+      #TODO
+      #@show_name = @name.encode(Encoding.find("filesystem"), Encoding.default_external,
+      #                          invalid: :replace, undef: :replace)
     end
 
     def dead?
@@ -44,21 +48,23 @@ module Colorls
     end
 
     def owner
-      return @@users[@stats.uid] if @@users.key? @stats.uid
+      return @@users[@stats.owner_id] if @@users.has_key? @stats.owner_id
 
-      user = Etc.getpwuid(@stats.uid)
-      @@users[@stats.uid] = user.nil? ? @stats.uid.to_s : user.name
+      #user = Etc.getpwuid(@stats.owner_id)
+      user = nil
+      @@users[@stats.owner_id] = user.nil? ? @stats.owner_id.to_s : user.name
     rescue ArgumentError
-      @stats.uid.to_s
+      @stats.owner_id.to_s
     end
 
     def group
-      return @@groups[@stats.gid] if @@groups.key? @stats.gid
+      return @@groups[@stats.group_id] if @@groups.has_key? @stats.group_id
 
-      group = Etc.getgrgid(@stats.gid)
-      @@groups[@stats.gid] = group.nil? ? @stats.gid.to_s : group.name
+      #MISSING group = Etc.getgrgid(@stats.group_id)
+      group = nil
+      @@groups[@stats.group_id] = group.nil? ? @stats.group_id.to_s : group.name
     rescue ArgumentError
-      @stats.gid.to_s
+      @stats.group_id.to_s
     end
 
     # target of a symlink (only available for symlinks)
@@ -70,6 +76,8 @@ module Colorls
       name
     end
 
+    def directory? ; @stats.directory? ; end
+    
     #def_delegators :@stats, :directory?, :socket?, :chardev?, :symlink?, :blockdev?, :mtime, :nlink, :size, :owned?,\
     #               :executable?
 
@@ -77,8 +85,8 @@ module Colorls
 
     def handle_symlink(path)
       @target = File.readlink(path)
-      @dead = !File.exist?(path)
-    rescue e : SystemCallError
+      @dead = !File.exists?(path)
+    rescue e : RuntimeError # SystemCallError
       STDERR.puts "cannot read symbolic link: #{e}"
     end
   end

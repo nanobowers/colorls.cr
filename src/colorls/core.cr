@@ -19,11 +19,11 @@ module Colorls
     console.winsize[1]
   end
 
-  @screen_width : Int32
-  @screen_width = 100 # terminal_width
+  @@screen_width : Int32
+  @@screen_width = 100 # terminal_width
 
   def self.screen_width
-    @screen_width
+    @@screen_width
   end
 
   class Core
@@ -51,6 +51,9 @@ module Colorls
 
       #@tree         = {mode: mode == :tree, depth: tree_depth}
       #@horizontal   = mode == :horizontal
+      @linklength = 0
+      @userlength = 0
+      @grouplength = 0
       @git_status   = init_git_status(git_status)
 
       init_colors colors
@@ -68,11 +71,10 @@ module Colorls
         return tree_traverse(info.path, 0, 1, 2)
       end
 
-      @contents = Dir.entries(info.path, encoding: Colorls.file_encoding)
+      dir_contents = Dir.entries(info.path, encoding: Colorls.file_encoding)
+      dir_contents = filter_hidden_contents(dir_contents)
 
-      filter_hidden_contents
-
-      @contents.map! { |e| FileInfo.dir_entry(info.path, e, link_info: @long) }
+      @contents = dir_contents.map { |e| FileInfo.dir_entry(info.path, e, link_info: @long) }
 
       filter_contents if @show
       sort_contents   if @sort
@@ -80,13 +82,11 @@ module Colorls
 
       return print "\n   Nothing to show here\n".colorize(@colors[:empty]) if @contents.empty?
 
-      ls
+      ls(@contents)
     end
 
     def ls_files(files)
-      @contents = files
-
-      ls
+      ls(files)
     end
 
     def display_report
@@ -100,16 +100,16 @@ module Colorls
 
     #private
 
-    def ls
-      init_column_lengths
+    def ls(contents)
+      init_column_lengths(contents)
 
       layout = case @mode
-               when Horizontal
-                 HorizontalLayout.new(@contents, item_widths, Colorls.screen_width)
-               when [OnePerLine, Long]
-                 SingleColumnLayout.new(@contents)
+               when DisplayMode::Horizontal
+                 HorizontalLayout.new(contents, Colorls.screen_width)
+               when [DisplayMode::OnePerLine, DisplayMode::Long]
+                 SingleColumnLayout.new(contents)
                else
-                 VerticalLayout.new(@contents, item_widths, Colorls.screen_width)
+                 VerticalLayout.new(contents, Colorls.screen_width)
                end
 
       layout.each_line do |line, widths|
@@ -149,30 +149,23 @@ module Colorls
       return emptyreturn
     end
 
-    # how much characters an item occupies besides its name
-    CHARS_PER_ITEM = 12
-
-    def item_widths
-      @contents.map { |item| Unicode::DisplayWidth.of(item.show) + CHARS_PER_ITEM }
+    def filter_hidden_contents(contents : Array(String)) : Array(String)
+      contents -= %w[. ..] unless @all
+      contents.keep_if { |x| !x.start_with? '.' } unless @all || @almost_all
     end
 
-    def filter_hidden_contents
-      @contents -= %w[. ..] unless @all
-      @contents.keep_if { |x| !x.start_with? '.' } unless @all || @almost_all
-    end
-
-    def init_column_lengths
-      return unless @long
+    def init_column_lengths(contents)
+      return unless @mode == DisplayMode::Long
 
       maxlink = maxuser = maxgroup = 0
 
-      @contents.each do |c|
-        maxlink = c.nlink if c.nlink > maxlink
-        maxuser = c.owner.length if c.owner.length > maxuser
-        maxgroup = c.group.length if c.group.length > maxgroup
+      contents.each do |c|
+        maxlink = 0 # c.nlink if c.nlink > maxlink
+        maxuser = c.owner.size if c.owner.size > maxuser
+        maxgroup = c.group.size if c.group.size > maxgroup
       end
 
-      @linklength = maxlink.digits.length
+      @linklength = maxlink.digits.size
       @userlength = maxuser
       @grouplength = maxgroup
     end
@@ -185,19 +178,19 @@ module Colorls
 
     def sort_contents
       case @sort
-      when :extension
+      when SortBy::Extension
         @contents.sort_by! do |f|
           name = f.name
           ext = File.extname(name)
           name = name.chomp(ext) unless ext.empty?
           [ext, name].map { |s| CLocale.strxfrm(s) }
         end
-      when :time
+      when SortBy::Time
         @contents.sort_by! { |a| -a.mtime.to_f }
-      when :size
+      when SortBy::Size
         @contents.sort_by! { |a| -a.size }
       else
-        @contents.sort_by! { |a| CLocale.strxfrm(a.name) }
+        @contents.sort_by! { |a| a.name } # { |a| CLocale.strxfrm(a.name) }
       end
       @contents.reverse! if @reverse
     end
@@ -376,9 +369,9 @@ module Colorls
     end
 
     def tree_contents(path)
-      @contents = Dir.entries(path, encoding: ColorLS.file_encoding)
+      dir_contents = Dir.entries(path, encoding: ColorLS.file_encoding)
 
-      filter_hidden_contents
+      dir_contents = filter_hidden_contents(dir_contents)
 
       @contents.map! { |e| FileInfo.dir_entry(path, e, link_info: @long) }
 

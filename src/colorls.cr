@@ -3,6 +3,7 @@
 require "./colorls/yaml"
 require "./colorls/flags"
 require "./colorls/fileinfo"
+require "./colorls/layout"
 require "./colorls/core"
 
 module Colorls

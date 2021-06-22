@@ -101,17 +101,21 @@ module Colorls
     def group_files_and_directories
       infos = @args.flat_map do |arg|
         FileInfo.info(arg)
-      rescue Errno::ENOENT
-        STDERR.puts "colorls: Specified path '#{arg}' doesn't exist.".colorize(:red)
+      rescue e : RuntimeError
+        STDERR.puts "#{arg}: #{e}".colorize(:red)
         @exit_status_code = 2
-        [] of String
-      rescue e : SystemCallError 
-        STDERR.puts "#{path}: #{e}".colorize(:red)
-        @exit_status_code = 2
-        [] of String
+        [] of FileInfo
+#      rescue Errno::ENOENT
+#        STDERR.puts "colorls: Specified path '#{arg}' doesn't exist.".colorize(:red)
+#        @exit_status_code = 2
+#        [] of String
+#      rescue e : RuntimeError # SystemCallError 
+#        STDERR.puts "#{path}: #{e}".colorize(:red)
+#        @exit_status_code = 2
+#        [] of String
       end
-
-      infos.group_by(&:directory?).values_at(true, false)
+ 
+      infos.group_by { |i| i.directory? }.values_at(true, false)
     end
 
     def process_args
@@ -129,7 +133,7 @@ module Colorls
         puts "\n#{dir.show}:" if @args.size > 1
 
         core.ls_dir(dir)
-      rescue e : SystemCallError
+      rescue e : RuntimeError # SystemCallError
         STDERR.puts "#{dir}: #{e}".colorize(:red)
       end
 
