@@ -1,5 +1,8 @@
 #require "forwardable"
 
+require "system/user"
+require "system/group"
+
 module Colorls
   class FileInfo
 
@@ -49,9 +52,7 @@ module Colorls
 
     def owner
       return @@users[@stats.owner_id] if @@users.has_key? @stats.owner_id
-
-      #user = Etc.getpwuid(@stats.owner_id)
-      user = nil
+      user = System::User.find_by?(id: @stats.owner_id)
       @@users[@stats.owner_id] = user.nil? ? @stats.owner_id.to_s : user.name
     rescue ArgumentError
       @stats.owner_id.to_s
@@ -59,9 +60,9 @@ module Colorls
 
     def group
       return @@groups[@stats.group_id] if @@groups.has_key? @stats.group_id
-
+      group = System::Group.find_by?(id: @stats.group_id)
       #MISSING group = Etc.getgrgid(@stats.group_id)
-      group = nil
+      #group = nil
       @@groups[@stats.group_id] = group.nil? ? @stats.group_id.to_s : group.name
     rescue ArgumentError
       @stats.group_id.to_s
