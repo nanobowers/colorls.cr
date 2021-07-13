@@ -44,7 +44,7 @@ module Colorls
       @all = false
       @almost_all = false
       @git_status = false
-      @colors = {} of YAML::Any => YAML::Any
+      @colors = {} of String => String # YAML::Any => YAML::Any
       @tree_depth = 3
       @show_group = true
       @show_user = true
@@ -113,8 +113,7 @@ module Colorls
 #        @exit_status_code = 2
 #        [] of String
       end
- 
-      infos.group_by { |i| i.directory? }.values_at(true, false)
+      infos.partition { |i| i.directory? }
     end
 
     def process_args
@@ -123,7 +122,7 @@ module Colorls
       
       directories, files = group_files_and_directories
 
-      core.ls_files(files) unless files.nil?
+      core.ls_files(files) unless files.empty?
 
       directories.sort_by! do |a|
         #CLocale.strxfrm(a.name)

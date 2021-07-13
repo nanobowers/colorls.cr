@@ -7,10 +7,11 @@ module Colorls
 
   class FileInfo
 
-    @show_name : String
-    @path : String
     @@users  = {} of String => String
     @@groups = {} of String => String
+
+    @show_name : String
+    @path : String
 
     getter :stats, :name, :path, :parent
 
@@ -26,6 +27,19 @@ module Colorls
       handle_symlink(@path) if link_info && @stats.symlink?
     end
 
+    # Return an empty fileinfo object
+    # This is to used to temporarily pad out a 2D array of FileInfo objects
+    # and then thrown away..
+    def initialize()
+      @name = ""
+      @path = ""
+      @show_name = ""
+      @parent = ""
+      @link_info = false
+      @stats = File.info("")
+    end
+      
+      
     def self.info(path : String, link_info=true)
       FileInfo.new(name: File.basename(path),
                    parent: File.dirname(path),
