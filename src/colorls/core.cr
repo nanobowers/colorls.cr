@@ -1,6 +1,7 @@
+require "uri"
+require "./monkeys"
+
 module Colorls
-
-
 
   # on Windows (were the special 'nul' device exists) we need to use UTF-8
   @@file_encoding = File.exists?("nul") ? "UTF_8" : "ASCII_8BIT"
@@ -27,16 +28,22 @@ module Colorls
   end
 
   class Core
-
+    @long : Bool
     @files : Hash(YAML::Any, YAML::Any)
     @folders : Hash(YAML::Any, YAML::Any)
     @folder_aliases : Hash(YAML::Any, YAML::Any)
     @file_aliases : Hash(YAML::Any, YAML::Any)
+    @tree : {mode: Bool, depth: Int32 }
+    
+    def initialize(@all : Bool, @sort : Bool|SortBy, @show : Bool|GroupBy , @mode : DisplayMode, @git_status : GitStatus, @almost_all : Bool, @colors : Hash(YAML::Any,YAML::Any), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
 
-    def initialize(@all : Bool, @sort : Bool|SortBy, @show : Bool|GroupBy , @mode : DisplayMode, @git_status : GitStatus, @almost_all : Bool, @colors : Hash(String,String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
       #mode = nil, git_status = false, almost_all = false, colors = [] of String, @group = nil,
       #reverse = false, hyperlink = false, tree_depth = nil, show_group = true, show_user = true)
-      @count = {folders: 0, recognized_files: 0, unrecognized_files: 0}
+
+      @count = {} of Symbol => Int32
+      @count[:folders] = 0
+      @count[:recognized_files] = 0
+      @count[:unrecognized_files] = 0
       #@all          = all
       #@almost_all   = almost_all
       #@hyperlink    = hyperlink
@@ -45,44 +52,47 @@ module Colorls
       #@group        = group
       #@show         = show
       #@one_per_line = mode == DisplayMode::OnePerLine
-      #@long = mode == DisplayMode::Long
+      @long = mode == DisplayMode::Long
       #@show_group = show_group
       #@show_user = show_user
 
-      #@tree         = {mode: mode == :tree, depth: tree_depth}
+      @tree         = {mode: mode == :tree, depth: tree_depth}
       #@horizontal   = mode == :horizontal
       @linklength = 0
       @userlength = 0
       @grouplength = 0
-      @git_status   = init_git_status(git_status)
+      @git_status   = init_git_status(@git_status)
 
+      @colors  = colors
+      @modes = Hash(String, String).new
+ 
       init_colors colors
  
       @files          = Colorls::Yaml.new("files.yaml").load()
       @file_aliases   = Colorls::Yaml.new("file_aliases.yaml").load(aliase: true)
       @folders        = Colorls::Yaml.new("folders.yaml").load
       @folder_aliases = Colorls::Yaml.new("folder_aliases.yaml").load(aliase: true)
-
+      @contents = [] of FileInfo
     end
-
+    
     def ls_dir(info)
       if @mode == DisplayMode::Tree
         print "\n"
         return tree_traverse(info.path, 0, 1, 2)
       end
 
-      dir_contents = Dir.entries(info.path, encoding: Colorls.file_encoding)
+      dir_contents = Dir.entries(info.path) #(, encoding: Colorls.file_encoding)
       dir_contents = filter_hidden_contents(dir_contents)
 
-      @contents = dir_contents.map { |e| FileInfo.dir_entry(info.path, e, link_info: @long) }
+      contents = dir_contents.map { |e| FileInfo.dir_entry(info.path, e, link_info: @long) }
 
-      filter_contents if @show
-      sort_contents   if @sort
-      group_contents  if @group
+      filter_contents(contents) if @show
+      sort_contents(contents)   if @sort
+      group_contents(contents)  if @group
 
-      return print "\n   Nothing to show here\n".colorize(@colors[:empty]) if @contents.empty?
+      return print "\n   Nothing to show here\n".colorize(@colors[:empty]) if contents.empty?
 
-      ls(@contents)
+      ls(contents)
     end
 
     def ls_files(files)
@@ -102,14 +112,13 @@ module Colorls
 
     def ls(contents)
       init_column_lengths(contents)
-
       layout = case @mode
                when DisplayMode::Horizontal
-                 HorizontalLayout.new(contents, Colorls.screen_width)
+                 HorizontalLayout.new(contents, item_widths, Colorls.screen_width)
                when [DisplayMode::OnePerLine, DisplayMode::Long]
                  SingleColumnLayout.new(contents)
                else
-                 VerticalLayout.new(contents, Colorls.screen_width)
+                 VerticalLayout.new(contents, item_widths, Colorls.screen_width)
                end
 
       layout.each_line do |line, widths|
@@ -117,17 +126,18 @@ module Colorls
       end
     end
 
+
     def init_colors(colors)
-      @colors  = colors
-      @modes = Hash(String, String).new do |hash, key|
-        color = case key
-                when 'r' then "read"
-                when 'w' then "write"
-                when '-' then "no_access"
-                when 'x', 's', 'S', 't', 'T' then "exec"
-                end
-        "foo"
-        #TODO hash[key] = key.colorize(@colors[color])
+      # set entries in the @colors database
+      "rw-xsStT".chars.each do |key|
+        filemode = case key
+                   when 'r' then "read"
+                   when 'w' then "write"
+                   when '-' then "no_access"
+                   when 'x', 's', 'S', 't', 'T' then "exec"
+                   end
+        modecolor = colors[filemode].as_s
+        @modes[key.to_s] = key.to_s.colorize(modecolor).to_s
       end
     end
 
@@ -149,9 +159,26 @@ module Colorls
       return emptyreturn
     end
 
+
+    # how much characters an item occupies besides its name
+    CHARS_PER_ITEM = 12
+
+    def item_widths : Array(Int32)
+      @contents.map do |item|
+        # Unicode::DisplayWidth.of(item.show) + CHARS_PER_ITEM
+        if item.nil?
+          CHARS_PER_ITEM
+        else
+          (item.show || "").size + CHARS_PER_ITEM
+        end
+        #item.size + CHARS_PER_ITEM
+      end
+    end
+    
     def filter_hidden_contents(contents : Array(String)) : Array(String)
       contents -= %w[. ..] unless @all
-      contents.keep_if { |x| !x.start_with? '.' } unless @all || @almost_all
+      contents.select! { |x| !x.starts_with? '.' } unless @all || @almost_all
+      contents
     end
 
     def init_column_lengths(contents)
@@ -170,91 +197,107 @@ module Colorls
       @grouplength = maxgroup
     end
 
-    def filter_contents
-      @contents.keep_if do |x|
+    def filter_contents(contents)
+      contents.select! do |x|
         x.directory? == (@show == :dirs)
       end
     end
 
-    def sort_contents
+    def sort_contents(contents)
       case @sort
       when SortBy::Extension
-        @contents.sort_by! do |f|
+        contents.sort_by! do |f|
           name = f.name
           ext = File.extname(name)
           name = name.chomp(ext) unless ext.empty?
-          [ext, name].map { |s| CLocale.strxfrm(s) }
+          [ext, name].map { |s| s } # {CLocale.strxfrm(s) }
         end
       when SortBy::Time
-        @contents.sort_by! { |a| -a.mtime.to_f }
+        contents.sort_by! { |a| a.mtime }
       when SortBy::Size
-        @contents.sort_by! { |a| -a.size }
+        contents.sort_by! { |a| -a.size }
       else
-        @contents.sort_by! { |a| a.name } # { |a| CLocale.strxfrm(a.name) }
+        contents.sort_by! { |a| a.name } # { |a| CLocale.strxfrm(a.name) }
       end
-      @contents.reverse! if @reverse
+      contents.reverse! if @reverse
     end
 
-    def group_contents
+    def group_contents(contents)
       return unless @group
 
-      dirs, files = @contents.partition(&:directory?)
+      dirs, files = contents.partition(&.directory?)
 
-      @contents = case @group
-                  when Dirs then dirs.push(*files)
-                  when Files then files.push(*dirs)
+      contents = case @group
+                  when GroupBy::Dirs then dirs + files
+                  when GroupBy::Files then files + dirs
                   end
     end
 
 
-    def format_mode(rwx, special, char)
-      m_r = (rwx & 4).zero? ? '-' : 'r'
-      m_w = (rwx & 2).zero? ? '-' : 'w'
+    def format_mode(read, write, execute, special, char)
+      m_r = read ? "r" : "-"
+      m_w = write ? "w" : "-"
       m_x = if special
-              (rwx & 1).zero? ? char.upcase : char
+              execute ? char : char.upcase
             else
-              (rwx & 1).zero? ? '-' : 'x'
+              execute ? "x" : "-"
             end
 
       @modes[m_r] + @modes[m_w] + @modes[m_x]
     end
 
-    def mode_info(stat)
-      m = stat.mode
-
-      format_mode(m >> 6, stat.setuid?, 's') +
-        format_mode(m >> 3, stat.setgid?, 's') +
-        format_mode(m, stat.sticky?, 't')
+    def mode_info(fileinfo)
+      prm = fileinfo.permissions
+      format_mode(prm.owner_read?, prm.owner_write?, prm.owner_execute?, fileinfo.flags.set_user?, 's') +
+        format_mode(prm.group_read?, prm.group_write?, prm.group_execute?, fileinfo.flags.set_group?, 's') +
+        format_mode(prm.other_read?, prm.other_write?, prm.other_execute?, fileinfo.flags.sticky?, 't')
     end
 
-    def user_info(content)
-      content.owner.ljust(@userlength, ' ').colorize(@colors[:user])
+    def user_info(content) : String
+      content.owner.ljust(@userlength, ' ').colorize(@colors[:user]).to_s
     end
 
-    def group_info(group)
-      group.to_s.ljust(@grouplength, ' ').colorize(@colors[:normal])
+    def group_info(group) : String
+      group.to_s.ljust(@grouplength, ' ').colorize(@colors[:normal]).to_s
     end
 
-    def size_info(filesize)
-      size = Filesize.new(filesize).pretty.split
-      size = "#{size[0][0..-4].rjust(4,' ')} #{size[1].ljust(3,' ')}"
-      return size.colorize(@colors[:file_large])  if filesize >= 512 * 1024 ** 2
-      return size.colorize(@colors[:file_medium]) if filesize >= 128 * 1024 ** 2
 
-      size.colorize(@colors[:file_small])
+    FILESIZE_PREFIXES = ["Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi"]
+    
+    def size_info(filesize) : String
+      if filesize < 1024
+        numstr = filesize.to_s
+        unit = "B"
+      else
+        pos = (Math.log(filesize) / Math.log(1024)).floor.to_i
+        numstr = ( filesize / (pos ** 1024)).floor.to_s
+        pos = FILESIZE_PREFIXES.size-1 if pos > FILESIZE_PREFIXES.size - 1
+        unit = FILESIZE_PREFIXES[pos-1] + "B"
+      end
+
+                                                              
+      #size = Filesize.new(filesize).pretty.split
+      #size = "#{size[0][0..-4].rjust(4,' ')} #{size[1].ljust(3,' ')}"
+      size = "#{numstr.rjust(4,' ')} #{unit.ljust(3,' ')}"
+      return size.colorize(@colors[:file_large]).to_s  if filesize >= 512 * 1024 ** 2
+      return size.colorize(@colors[:file_medium]).to_s if filesize >= 128 * 1024 ** 2
+
+      size.colorize(@colors[:file_small]).to_s
     end
 
-    def mtime_info(file_mtime)
-      mtime = file_mtime.asctime
-      now = Time.now
-      return mtime.colorize(@colors[:hour_old]) if now - file_mtime < 60 * 60
-      return mtime.colorize(@colors[:day_old])  if now - file_mtime < 24 * 60 * 60
+    def mtime_info(file_mtime) : String
+      fmt = Time::Format.new("%c")
+      mtime = fmt.format(file_mtime) # was... file_mtime.asctime
+      now = Time.local # Time.now
+      delta = (now - file_mtime).to_i
+      return mtime.colorize(@colors[:hour_old]).to_s if delta < (60 * 60)
+      return mtime.colorize(@colors[:day_old]).to_s  if delta < (24 * 60 * 60)
 
-      mtime.colorize(@colors[:no_modifier])
+      mtime.colorize(@colors[:no_modifier]).to_s
     end
 
     def git_info(content): String
-      return "" unless (status = @git_status[content])
+      return "" #TODO unless (status = @git_status[content])
 
       if content.directory?
         git_dir_info(content, status)
@@ -267,11 +310,11 @@ module Colorls
       return Git.colored_status_symbols(status, @colors) if status
 
       "  ✓ "
-        .encode(Encoding.default_external, undef: :replace, replace: '=')
+        #.encode(Encoding.default_external, undef: :replace, replace: '=')
         .colorize(@colors[:unchanged])
     end
 
-    def git_dir_info(content, status)
+    def git_dir_info(content, status) : String
       modes = if content.path == '.'
                 Set.new(status.values).flatten
               else
@@ -285,10 +328,10 @@ module Colorls
       end
     end
 
-    def long_info(content)
+    def long_info(content) : String
       return "" unless @long
-
-      links = content.nlink.to_s.rjust(@linklength)
+      numlinks = 0 # content.nlink
+      links = numlinks.to_s.rjust(@linklength)
 
       line_array = [mode_info(content.stats), links]
       line_array.push user_info(content) if @show_user
@@ -310,77 +353,96 @@ module Colorls
     end
 
     def out_encode(str)
-      str.encode(Encoding.default_external, undef: :replace, replace: "")
+      str # str.encode(Encoding.default_external, undef: :replace, replace: "")
     end
 
-    def fetch_string(content, key, color, increment)
+    def fetch_string(content : FileInfo, key, color, increment : Symbol)
       @count[increment] += 1
       value = increment == :folders ? @folders[key] : @files[key]
-      logo  = value.gsub(/\\u[\da-f]{4}/i) { |m| [m[-4..-1].to_i(16)].pack('U') }
+      # convert unicode "\uXXXX" expressions into characters
+      logo  = value.to_s.gsub(/\\u[\da-f]{4}/i) { |m| m[-4..-1].to_i(16).chr }
       name = content.show
       name = make_link(content) if @hyperlink
       name += content.directory? ? '/' : ' '
       entry = "#{out_encode(logo)}  #{out_encode(name)}"
-      entry = entry.bright if !content.directory? && content.executable?
-
-      "#{long_info(content)} #{git_info(content)} #{entry.colorize(color)}#{symlink_info(content)}"
+      entry = entry.colorize(:bright) if !content.directory? && content.executable?
+      colorentry = entry.to_s.colorize(color)
+      "#{long_info(content)} #{git_info(content)} #{colorentry}#{symlink_info(content)}"
     end
 
     def ls_line(chunk, widths)
       padding = 0
-      line = +""
+      line = ""
       chunk.each_with_index do |content, i|
         entry = fetch_string(content, *options(content))
-        line << " " * padding
-        line << "  " << entry.encode(Encoding.default_external, undef: :replace)
-        padding = widths[i] - Unicode::DisplayWidth.of(content.show) - CHARS_PER_ITEM
+        line += " " * padding
+        line += "  " + entry # entry.encode(Encoding.default_external, undef: :replace)
+        #padding = widths[i] - Unicode::DisplayWidth.of(content.show) - CHARS_PER_ITEM
+        padding = widths[i] - content.show.size - CHARS_PER_ITEM
       end
-      print line << "\n"
+      print line + "\n"
     end
 
-    def file_color(file, key)
+    def file_color(file, key) : String
       color_key = case
                   when file.chardev?    then "chardev"
                   when file.blockdev?   then "blockdev"
                   when file.socket?     then "socket"
                   when file.executable? then "executable_file"
-                  when @files.key?(key) then "recognized_file"
+                  when @files.has_key?(key) then "recognized_file"
                   else                       "unrecognized_file"
                   end
-      @colors[color_key]
+      @colors[color_key].as_s
     end
 
-    def options(content)
+    def options(content : FileInfo) : { String, String, Symbol }
       if content.directory?
-        key = content.name.downcase.to_sym
-        key = @folder_aliases[key] unless @folders.key? key
-        key = :folder if key.nil?
-        color = @colors[:dir]
+        key = content.name.downcase
+        key = @folder_aliases[key].to_s unless @folders.has_key? key
+        key = "folder" if key.nil?
+        color = @colors[:dir].as_s
         group = :folders
       else
-        key = File.extname(content.name).delete_prefix('.').downcase.to_sym
-        key = @file_aliases[key] unless @files.key? key
+        key = File.extname(content.name).sub(/^./, "").downcase
+        key = @file_aliases[key].to_s unless @files.has_key? key
         color = file_color(content, key)
-        group = @files.key?(key) ? :recognized_files : :unrecognized_files
-        key = :file if key.nil?
+        group = @files.has_key?(key) ? :recognized_files : :unrecognized_files
+        key = "file" if key.nil?
       end
 
-      [key, color, group]
+      {key, color, group}
     end
 
     def tree_contents(path)
-      dir_contents = Dir.entries(path, encoding: ColorLS.file_encoding)
+      dir_contents = Dir.entries(path) #, encoding: Colorls.file_encoding)
 
       dir_contents = filter_hidden_contents(dir_contents)
 
-      @contents.map! { |e| FileInfo.dir_entry(path, e, link_info: @long) }
+      contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
 
-      filter_contents if @show
-      sort_contents   if @sort
-      group_contents  if @group
+      filter_contents(contents) if @show
+      sort_contents(contents)   if @sort
+      group_contents(contents)  if @group
 
       @contents
     end
+
+    def get_contents(path : String | Path)
+      dir_contents = Dir.entries(path) #, encoding: Colorls.file_encoding)
+
+      dir_contents = filter_hidden_contents(dir_contents)
+
+      contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
+
+      # TODO
+      #filter_contents(contents) if @show
+      #sort_contents   if @sort
+      #group_contents  if @group
+
+      #@contents
+      contents
+    end
+    
 
     def tree_traverse(path, prespace, depth, indent)
       contents = tree_contents(path)
@@ -401,11 +463,12 @@ module Colorls
     def tree_branch_preprint(prespace, indent, prespace_icon)
       return prespace_icon if prespace.zero?
 
-      " │ " * (prespace/indent) + prespace_icon + "─" * indent
+      " │ " * (prespace/indent).to_i + prespace_icon + "─" * indent
     end
 
     def make_link(content)
-      uri = Addressable::URI.convert_path(File.absolute_path(content.path))
+      #uri = Addressable::URI.convert_path(File.absolute_path(content.path))
+      uri = "file://" + URI.encode(File.expand_path(content.path))
       "\033]8;;#{uri}\007#{content.name}\033]8;;\007"
     end
   end

@@ -17,8 +17,15 @@ class String
                        "light_magenta": Colorize::ColorANSI::LightMagenta,
                        "light_cyan": Colorize::ColorANSI::LightCyan,
                      }
+
   def colorize(color : String)
     self.colorize(@@color_str_map[color])
+  end
+
+  # We read colors directly from the yaml, so just do the conversion here.
+  # May want to consider moving this into the yaml read...
+  def colorize(color : YAML::Any)
+    self.colorize(@@color_str_map[color.as_s])
   end
 
   def uniq

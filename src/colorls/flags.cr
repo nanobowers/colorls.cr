@@ -1,7 +1,6 @@
 require "option_parser"
 require "colorize"
 #require "colorls/version"
-#require "ostruct"
 
 module Colorls
 
@@ -45,7 +44,7 @@ module Colorls
       @all = false
       @almost_all = false
       @git_status = false
-      @colors = {} of String => String
+      @colors = {} of YAML::Any => YAML::Any
       @tree_depth = 3
       @show_group = true
       @show_user = true
@@ -248,7 +247,7 @@ module Colorls
     end
 
     def show_examples
-      puts <<-EXAMPLES.gsub(/^  /, "")
+      puts <<-EXAMPLES.gsub(/^  /m, "")
 
   examples:
 
@@ -302,7 +301,7 @@ EXAMPLES
       show_help if !@args.empty? && @args.all?("-h")
 
       @parser.parse(@args)
-
+      pp! self
       set_color_opts
     rescue e : OptionParser::Exception
       STDERR.puts "colorls: #{e}\nSee \"colorls --help\"."
@@ -311,7 +310,7 @@ EXAMPLES
 
     def set_color_opts
       color_scheme_file = @light_colors ? "light_colors.yaml" : "dark_colors.yaml"
-      #@colors = Colorls::Yaml.new(color_scheme_file).load(aliase: true)
+      @colors = Colorls::Yaml.new(color_scheme_file).load(aliase: true)
     end
   end
     

@@ -1,29 +1,24 @@
 require "./fileinfo"
 module Colorls
   
-  abstract class Layout
+  abstract class Layout(T)
 
-    @max_widths : Array(Int32) # typing
-    
-    # how much characters an item occupies besides its name
-    CHARS_PER_ITEM = 12
-
-    def initialize(@contents : Array(String), @screen_width : Int32)
-      @max_widths = @contents.map do |item|
-        # Unicode::DisplayWidth.of(item.show) + CHARS_PER_ITEM
-        #item.show.size + CHARS_PER_ITEM
-        item.size + CHARS_PER_ITEM
-      end
+    def initialize(@contents : Array(T), @max_widths : Array(Int32) , @screen_width : Int32)
     end
 
     def each_line
       return if @contents.empty?
-      get_chunks(chunk_size).each { |line| yield(line.compact, @max_widths) }
+      get_chunks(chunk_size).each { |line|
+        ## compact_line = line.compact
+        # TODO: previously we had nils in our list, which we compacted
+        # but now we use empty-strings so we have to compact them out by
+        # rejecting them.
+        compact_line = line.reject { |x| x == "" }
+        yield(compact_line, @max_widths)
+      }
     end
 
-#    private
-
-    def chunk_size : Int32
+    private def chunk_size : Int32
       min_size = @max_widths.min
       max_chunks = [1, @screen_width / min_size].max
       max_chunks = [max_chunks, @max_widths.size].min
@@ -34,7 +29,7 @@ module Colorls
 
         size, max_widths = self.column_widths(mid)
 
-        if min_chunks < max_chunks && not_in_line(max_widths)
+        if (min_chunks < max_chunks) && not_in_line(max_widths)
           max_chunks = mid - 1
         elsif min_chunks < mid
           min_chunks = mid
@@ -45,59 +40,60 @@ module Colorls
       end
     end
 
-    def not_in_line(max_widths : Array(Int32))
+    private def not_in_line(max_widths : Array(Int32))
       max_widths.sum > @screen_width
     end
+    
   end
 
-  class SingleColumnLayout < Layout
-    def initialize(contents)
-      super(contents, 1)
+  class SingleColumnLayout(T) < Layout(T)
+    
+    def initialize(contents : Array(T))
+      super(contents, [1], 1)
     end
 
-    #private
-    def column_widths(_mid) : {Int32, Array(Int32)}
-      {1, [1]} ###????
+    private def column_widths(_mid) : {Int32, Array(Int32)}
+      {1, [1]}
     end
     
-    def chunk_size : Int32
+    private def chunk_size : Int32
       1
     end
 
-    def get_chunks(_chunk_size)
+    private def get_chunks(_chunk_size)
       @contents.each_slice(1)
     end
+    
   end
 
-  class HorizontalLayout < Layout
-    #private
+  class HorizontalLayout(T) < Layout(T)
 
-    def column_widths(mid : Int32) : {Int32, Array(Int32)}
+    private def column_widths(mid : Int32) : {Int32, Array(Int32)}
       max_widths = @max_widths.each_slice(mid).to_a
       last_size = max_widths.last.size
-      max_widths.last.fill(0, last_size, max_widths.first.size - last_size)
-      p! typeof(max_widths)
-      {1, [1,1]}
-      #[mid, max_widths.transpose.map! { |x| x.max} ]
+      #max_widths.last.fill(0, last_size, max_widths.first.size - last_size)
+      max_widths.last[last_size..] = [0] * (max_widths.first.size - last_size)
+      {mid, max_widths.transpose.map(&.max)}
     end
 
-    def get_chunks(chunk_size)
+    private def get_chunks(chunk_size)
       @contents.each_slice(chunk_size)
     end
   end
 
-  class VerticalLayout < Layout
-    #private
+  class VerticalLayout(T) < Layout(T)
 
-    def column_widths(mid : Int32) : {Int32, Array(Int32)}
+    private def column_widths(mid : Int32) : {Int32, Array(Int32)}
       chunk_size = (@max_widths.size.to_f / mid).ceil.to_i
-      {1, [1,1]}
-      #[chunk_size, @max_widths.each_slice(chunk_size).map { |x| x.max }.to_a]
+      { chunk_size, @max_widths.each_slice(chunk_size).map(&.max).to_a }
     end
 
-    def get_chunks(chunk_size)
+    private def get_chunks(chunk_size)
       columns = @contents.each_slice(chunk_size).to_a
-      columns.last[chunk_size - 1] = nil if columns.last.size < chunk_size
+      if columns[-1].size < chunk_size
+        range = (columns[-1].size)..chunk_size-1
+        range.size.times { columns[-1] << T.new() }
+      end
       columns.transpose
     end
   end

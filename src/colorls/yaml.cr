@@ -2,7 +2,7 @@ require "yaml"
 module Colorls
   class Yaml
     def initialize(filename : String)
-      @filepath = File.join(File.dirname(__FILE__),"../yaml/#{filename}")
+      @filepath = File.join(File.dirname(__FILE__),"../../lib/yaml/#{filename}")
       @user_config_filepath = File.join(Path.home, ".config/colorls/#{filename}")
     end
 

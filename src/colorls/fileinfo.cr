@@ -4,23 +4,21 @@ require "system/user"
 require "system/group"
 
 module Colorls
+
   class FileInfo
 
     @show_name : String
     @path : String
-    
-    #extend Forwardable
-
-    @@users  = {} of String=>String
-    @@groups = {} of String=>String
+    @@users  = {} of String => String
+    @@groups = {} of String => String
 
     getter :stats, :name, :path, :parent
 
-    def initialize(@name : String, @parent : String, @path = nil, @link_info = true)
-      #@path = path.nil? ? File.join(parent, name) : path
-      @path = File.join(parent, name)
+    def initialize(@name : String, @parent : String, path : String? = nil , @link_info = true)
+      @path = path.nil? ? File.join(parent, name) : path
+      #@ftype = File::Type.new()
       @stats = File.info(@path, follow_symlinks: false)
-      @show_name = "" # nil
+      @show_name = ""
 
       # TODO:
       # @path.force_encoding(Colorls.file_encoding)
@@ -34,7 +32,7 @@ module Colorls
                    path: path, link_info: link_info)
     end
 
-    def self.dir_entry(dir, child, link_info=true)
+    def self.dir_entry(dir : String, child : String , link_info : Bool = true) : FileInfo
       FileInfo.new(name: child, parent: dir, link_info: link_info)
     end
 
@@ -42,8 +40,7 @@ module Colorls
       return @show_name unless @show_name.nil?
       @show_name = @name
       #TODO
-      #@show_name = @name.encode(Encoding.find("filesystem"), Encoding.default_external,
-      #                          invalid: :replace, undef: :replace)
+      #@show_name = @name.encode(Encoding.find("filesystem"), Encoding.default_external, invalid: :replace, undef: :replace)
     end
 
     def dead?
@@ -78,6 +75,13 @@ module Colorls
     end
 
     def directory? ; @stats.directory? ; end
+    def chardev? ; @stats.type.character_device? ; end
+    def blockdev? ; @stats.type.block_device? ; end
+    def socket? ; @stats.type.socket? ; end
+    def executable? ; File.executable?(@path) ; end
+    def size ; @stats.size ; end
+    def mtime ; @stats.modification_time ; end
+    def symlink? ; File.symlink?(@path) ; end
     
     #def_delegators :@stats, :directory?, :socket?, :chardev?, :symlink?, :blockdev?, :mtime, :nlink, :size, :owned?,\
     #               :executable?
@@ -91,4 +95,19 @@ module Colorls
       STDERR.puts "cannot read symbolic link: #{e}"
     end
   end
+
+  class EmptyFileInfo < FileInfo
+    def initialize(@name : String)
+      #@ftype = File::Type.new()
+      @link_info = false
+      @parent = ""
+      @path = ""
+      @stats = File.info("/tmp", follow_symlinks: false)
+      @show_name = ""
+      @target = nil
+      @dead = false
+    end
+    def show ; "" ; end
+  end
+  
 end
