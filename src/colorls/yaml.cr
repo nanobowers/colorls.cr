@@ -19,11 +19,5 @@ module Colorls
       #yaml.to_a.map! { |k, v| v.includes?('#') ? [k, v] : [k, v.to_sym] }.to_h
     end
 
-#    def read_file(filepath)
-#      File.open(filepath) do |file|
-#        YAML.parse(file)
-#      end
-#      #::YAML.load(File.read(filepath, encoding: "UTF_8")).transform_keys!(&:to_sym)
-#    end
   end
 end

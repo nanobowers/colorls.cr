@@ -52,7 +52,7 @@ module Colorls
       #@group        = group
       #@show         = show
       #@one_per_line = mode == DisplayMode::OnePerLine
-      @long = mode == DisplayMode::Long
+      @long = (mode == DisplayMode::Long)
       #@show_group = show_group
       #@show_user = show_user
 
@@ -67,15 +67,15 @@ module Colorls
       @modes = Hash(String, String).new
  
       init_colors colors
- 
+
       @files          = Colorls::Yaml.new("files.yaml").load()
       @file_aliases   = Colorls::Yaml.new("file_aliases.yaml").load(aliase: true)
       @folders        = Colorls::Yaml.new("folders.yaml").load
       @folder_aliases = Colorls::Yaml.new("folder_aliases.yaml").load(aliase: true)
-      @contents = [] of FileInfo
+      #@contents = [] of FileInfo
     end
     
-    def ls_dir(info)
+    def ls_dir(info : FileInfo)
       if @mode == DisplayMode::Tree
         print "\n"
         return tree_traverse(info.path, 0, 1, 2)
@@ -110,21 +110,19 @@ module Colorls
 
     private def ls(contents)
       init_column_lengths(contents)
-      #pp contents
+      puts @mode == DisplayMode::Vertical
       layout = case @mode
                when DisplayMode::Horizontal
                  HorizontalLayout.new(contents, item_widths(contents), Colorls.screen_width)
-               when [DisplayMode::OnePerLine, DisplayMode::Long]
+               when DisplayMode::OnePerLine, DisplayMode::Long
                  SingleColumnLayout.new(contents)
                else
                  VerticalLayout.new(contents, item_widths(contents), Colorls.screen_width)
                end
-      pp! layout
       layout.each_line do |line, widths|
         ls_line(line, widths)
       end
     end
-
 
     private def init_colors(colors)
       # set entries in the @colors database
@@ -237,7 +235,7 @@ module Colorls
       m_r = read ? "r" : "-"
       m_w = write ? "w" : "-"
       m_x = if special
-              execute ? char : char.upcase
+              (execute ? char : char.upcase).to_s
             else
               execute ? "x" : "-"
             end
@@ -269,19 +267,15 @@ module Colorls
         unit = "B"
       else
         pos = (Math.log(filesize) / Math.log(1024)).floor.to_i64
-        p! pos
         numstr = ( filesize / (1024 ** pos)).floor.to_s
         pos = FILESIZE_PREFIXES.size-1 if pos > FILESIZE_PREFIXES.size - 1
         unit = FILESIZE_PREFIXES[pos-1] + "B"
       end
 
-                                                              
-      #size = Filesize.new(filesize).pretty.split
-      #size = "#{size[0][0..-4].rjust(4,' ')} #{size[1].ljust(3,' ')}"
       size = "#{numstr.rjust(4,' ')} #{unit.ljust(3,' ')}"
+
       return size.colorize(@colors["file_large"]).to_s  if filesize >= 512 * 1024 ** 2
       return size.colorize(@colors["file_medium"]).to_s if filesize >= 128 * 1024 ** 2
-
       size.colorize(@colors["file_small"]).to_s
     end
 
@@ -308,7 +302,6 @@ module Colorls
 
     def git_file_info(status) : String
       return Git.colored_status_symbols(status, @colors) if status
-
       "  ✓ "
         #.encode(Encoding.default_external, undef: :replace, replace: '=')
         .colorize(@colors["unchanged"])
@@ -358,10 +351,10 @@ module Colorls
 
     def fetch_string(content : FileInfo, key, color, increment : Symbol)
       @count[increment] += 1
-      value = increment == :folders ? @folders[key]? : @files[key]?
+      value = (increment == :folders) ? @folders[key]? : @files[key]?
       # convert unicode "\uXXXX" expressions into characters
       logo  = value.to_s.gsub(/\\u[\da-f]{4}/i) { |m| m[-4..-1].to_i(16).chr }
-      name = content.show
+      name = content.show()
       name = make_link(content) if @hyperlink
       name += content.directory? ? '/' : ' '
       entry = "#{out_encode(logo)}  #{out_encode(name)}"
@@ -378,6 +371,7 @@ module Colorls
         line += " " * padding
         line += "  " + entry # entry.encode(Encoding.default_external, undef: :replace)
         #padding = widths[i] - Unicode::DisplayWidth.of(content.show) - CHARS_PER_ITEM
+        #TODO how do we determine wide unicode chars in crystal?
         padding = widths[i] - content.show.size - CHARS_PER_ITEM
       end
       print line + "\n"
@@ -398,12 +392,6 @@ module Colorls
     def options(content : FileInfo) : { String, String, Symbol }
       if content.directory?
         key = content.name.downcase
-        p! content
-        p! @folders
-        p! @folder_aliases
-
-        #key = @folder_aliases[key] unless @folders.has_key? key
-        #key = "folder" if key.nil?
         unless @folders.has_key? key
           key = @folder_aliases[key]? || "folder"
         end
@@ -412,17 +400,15 @@ module Colorls
       else
         key = File.extname(content.name).sub(/^./, "").downcase
         unless @files.has_key? key
-          key = @file_aliases[key]? || ""
+          key = @file_aliases[key]? || "file"
         end
         color = file_color(content, key)
         group = @files.has_key?(key) ? :recognized_files : :unrecognized_files
-        key = "file" if key.nil?
       end
-
-      {key, color, group}
+      return {key, color, group}
     end
 
-    def tree_contents(path)
+    def tree_contents(path : String | Path)
       dir_contents = Dir.entries(path) #, encoding: Colorls.file_encoding)
 
       dir_contents = filter_hidden_contents(dir_contents)
@@ -433,7 +419,7 @@ module Colorls
       sort_contents(contents)   if @sort
       group_contents(contents)  if @group
 
-      @contents
+      contents
     end
 
     def get_contents(path : String | Path)
@@ -453,15 +439,15 @@ module Colorls
     end
     
 
-    def tree_traverse(path, prespace, depth, indent)
+    def tree_traverse(path : String | Path, prespace, depth : Int32, indent)
       contents = tree_contents(path)
       contents.each do |content|
         icon = content == contents.last || content.directory? ? " └──" : " ├──"
         print tree_branch_preprint(prespace, indent, icon).colorize(@colors["tree"])
         print " #{fetch_string(content, *options(content))} \n"
         next unless content.directory?
-
-        tree_traverse("#{path}/#{content}", prespace + indent, depth + 1, indent) if keep_going(depth)
+        
+        tree_traverse("#{path}/#{content.name}", prespace + indent, depth + 1, indent) if keep_going(depth)
       end
     end
 

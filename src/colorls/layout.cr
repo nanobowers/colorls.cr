@@ -8,7 +8,8 @@ module Colorls
 
     def each_line
       return if @contents.empty?
-      get_chunks(chunk_size).each { |line|
+      self.get_chunks(chunk_size).each { |line|
+
         ## compact_line = line.compact
         # TODO: previously we had nils in our list, which we compacted
         # but now we use empty-strings so we have to compact them out by
@@ -49,6 +50,7 @@ module Colorls
   class SingleColumnLayout(T) < Layout(T)
     
     def initialize(contents : Array(T))
+
       super(contents, [1], 1)
     end
 

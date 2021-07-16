@@ -10,7 +10,7 @@ describe String do
 
   describe "#colorize" do
     it "colors a string with red" do
-      colorsym = "hello".colorize(:red)
+      colorsym = "hello".colorize(Colorize::ColorRGB.new(255,0,0))
       colorstr = "hello".colorize("red")
       colorsym.should eq(colorstr)
     end

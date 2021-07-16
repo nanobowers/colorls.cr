@@ -31,6 +31,7 @@ module Colorls
 
     @sort : SortBy | Bool
     @parser : OptionParser
+    @reverse : Bool
     
     def initialize(args : Array(String) )
       @args = args
@@ -44,7 +45,7 @@ module Colorls
       @all = false
       @almost_all = false
       @git_status = false
-      @colors = {} of String => String # YAML::Any => YAML::Any
+      @colors = {} of String => String
       @tree_depth = 3
       @show_group = true
       @show_user = true
@@ -67,7 +68,7 @@ module Colorls
     def process
       init_locale
 
-      @args = ["."] if @args.empty?
+      @args = ["."] if @args.empty? # ls the current directory
 
       process_args
     end
@@ -125,7 +126,7 @@ module Colorls
       core.ls_files(files) unless files.empty?
 
       directories.sort_by! do |a|
-        #CLocale.strxfrm(a.name)
+        ##CLocale.strxfrm(a.name)
         a.name
       end.each do |dir|
         puts "\n#{dir.show}:" if @args.size > 1
@@ -151,17 +152,17 @@ module Colorls
       options.on("-U", "do not sort; list entries in directory order")                     { @sort = false }
       options.on("-S", "sort by file size, largest first")                                 { @sort = SortBy::Size }
       options.on("-X", "sort by file extension")                                           { @sort = SortBy::Extension }
-#      options.on(
-#        "--sort=WORD",
-#        # validate: %w[none time size extension],
-#        "sort by WORD instead of name: none, size (-S), time (-t), extension (-X)"
-#      ) do |word|
-#        @sort = case word
-#                when "none" then false
-#                else word
-#                end
-#      end
-
+      options.on("--sort=WORD", "sort by WORD instead of name: none, size (-S), time (-t), extension (-X)") do |word|
+        valid_list = %w[none time size extension]
+        case word
+        when "time" then @sort = SortBy::Time
+        when "size" then @sort = SortBy::Size
+        when "extension" then @sort = SortBy::Extension
+        when "none" then @sort = false
+        else
+          raise OptionParser::Exception.new("Error: Argument to --sort must be one of #{valid_list.inspect}")
+        end
+      end
       options.on("-r", "--reverse", "reverse order while sorting") { @reverse = true }
     end
 
@@ -176,14 +177,17 @@ module Colorls
 
     def add_format_options(options)
       options.on(
-        "--format=WORD", # %w[across horizontal long single-column],
+        "--format=WORD",
         "use format: across (-x), horizontal (-x), long (-l), single-column (-1), vertical (-C)"
       ) do |word|
+        valid_list = %w[across horizontal long single-column]
         case word
         when "across", "horizontal" then @mode = DisplayMode::Horizontal
         when "vertical" then @mode = DisplayMode::Vertical
         when "long" then @mode = DisplayMode::Long
         when "single-column" then @mode = DisplayMode::OnePerLine
+        else
+          raise OptionParser::Exception.new("Error: Argument to --format must be one of #{valid_list.inspect}")
         end
       end
       options.on("-1", "list one file per line") { @mode = DisplayMode::OnePerLine }
@@ -298,9 +302,7 @@ EXAMPLES
     def parse_options
       # show help and exit if the only argument is -h
       show_help if !@args.empty? && @args.all?("-h")
-
       @parser.parse(@args)
-      pp! self
       set_color_opts
     rescue e : OptionParser::Exception
       STDERR.puts "colorls: #{e}\nSee \"colorls --help\"."

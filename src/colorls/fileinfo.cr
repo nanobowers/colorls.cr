@@ -10,7 +10,7 @@ module Colorls
     @@users  = {} of String => String
     @@groups = {} of String => String
 
-    @show_name : String
+    @show_name : String?
     @path : String
 
     getter :stats, :name, :path, :parent
@@ -19,7 +19,7 @@ module Colorls
       @path = path.nil? ? File.join(parent, name) : path
       #@ftype = File::Type.new()
       @stats = File.info(@path, follow_symlinks: false)
-      @show_name = ""
+      @show_name = nil
 
       # TODO:
       # @path.force_encoding(Colorls.file_encoding)
@@ -51,10 +51,13 @@ module Colorls
     end
 
     def show : String
-      return @show_name unless @show_name.nil?
-      @show_name = @name
-      #TODO
-      #@show_name = @name.encode(Encoding.find("filesystem"), Encoding.default_external, invalid: :replace, undef: :replace)
+      if @show_name.nil?
+        #TODO @show_name = @name.encode(Encoding.find("filesystem"), Encoding.default_external, invalid: :replace, undef: :replace)
+        @show_name = @name
+        return @name
+      else
+        return @show_name.as(String)
+      end
     end
 
     def dead?
@@ -62,10 +65,11 @@ module Colorls
     end
 
     def owner
-      return @@users[@stats.owner_id] if @@users.has_key? @stats.owner_id
-      user = System::User.find_by?(id: @stats.owner_id)
-      @@users[@stats.owner_id] = user.nil? ? @stats.owner_id.to_s : user.name
-    rescue ArgumentError
+      owner_id = @stats.owner_id
+      return @@users[owner_id] if @@users.has_key?(owner_id)
+      user = System::User.find_by(id: owner_id)
+      @@users[owner_id] = user.username # sometimes user.name is the empty-string??
+    rescue System::User::NotFoundError
       @stats.owner_id.to_s
     end
 
