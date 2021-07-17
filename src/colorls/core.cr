@@ -110,7 +110,6 @@ module Colorls
 
     private def ls(contents)
       init_column_lengths(contents)
-      puts @mode == DisplayMode::Vertical
       layout = case @mode
                when DisplayMode::Horizontal
                  HorizontalLayout.new(contents, item_widths(contents), Colorls.screen_width)

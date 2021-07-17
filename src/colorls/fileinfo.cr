@@ -36,7 +36,9 @@ module Colorls
       @show_name = ""
       @parent = ""
       @link_info = false
-      @stats = File.info("")
+      # hopefully current dir exists, this is only initialized because it's
+      # expensive to make the type-checker allow nils here.
+      @stats = File.info(".")
     end
       
       
