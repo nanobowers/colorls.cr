@@ -1,0 +1,10 @@
+version: 2.0
+shards:
+  textseg:
+    git: https://github.com/naqvis/uni_text_seg.git
+    version: 0.1.2
+
+  uniwidth:
+    git: https://github.com/naqvis/uni_char_width.git
+    version: 0.1.1
+

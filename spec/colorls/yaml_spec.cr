@@ -14,7 +14,7 @@ describe Colorls::Yaml do
     files: KV::Key
   }
 
-  base_directory = "lib/yaml"
+  base_directory = "config/yaml"
 
   filenames.each do |filename, sort_type|
     

@@ -20,8 +20,10 @@ module Colorls
     console.winsize[1]
   end
 
+  # terminal_width
+  # TODO: get the width-info from the TTY
   @@screen_width : Int32
-  @@screen_width = 100 # terminal_width
+  @@screen_width = 100 
 
   def self.screen_width
     @@screen_width
@@ -161,13 +163,7 @@ module Colorls
 
     def item_widths(contents) : Array(Int32)
       contents.map do |item|
-        # Unicode::DisplayWidth.of(item.show) + CHARS_PER_ITEM
-        if item.nil?
-          CHARS_PER_ITEM
-        else
-          (item.show || "").size + CHARS_PER_ITEM
-        end
-        #item.size + CHARS_PER_ITEM
+        UnicodeCharWidth.width(item.show || "") + CHARS_PER_ITEM
       end
     end
     
@@ -369,9 +365,8 @@ module Colorls
         entry = fetch_string(content, *options(content))
         line += " " * padding
         line += "  " + entry # entry.encode(Encoding.default_external, undef: :replace)
-        #padding = widths[i] - Unicode::DisplayWidth.of(content.show) - CHARS_PER_ITEM
-        #TODO how do we determine wide unicode chars in crystal?
-        padding = widths[i] - content.show.size - CHARS_PER_ITEM
+        padding = widths[i] - UnicodeCharWidth.width(content.show) - CHARS_PER_ITEM
+        #padding = widths[i] - content.show.size - CHARS_PER_ITEM
       end
       print line + "\n"
     end

@@ -1,5 +1,5 @@
 name: colorls
-version: 0.1.0
+version: 0.0.1
 
 authors:
   - Ben Bowers <nanobowers@gmail.com>
@@ -8,6 +8,10 @@ targets:
   colorls:
     main: src/colorls.cr
 
+dependencies:
+  uniwidth:
+    github: naqvis/uni_char_width
+    
 crystal: 1.0.0
 
 license: MIT

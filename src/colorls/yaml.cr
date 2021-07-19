@@ -2,7 +2,7 @@ require "yaml"
 module Colorls
   class Yaml
     def initialize(filename : String)
-      @filepath = File.join(File.dirname(__FILE__),"../../lib/yaml/#{filename}")
+      @filepath = File.join(File.dirname(__FILE__),"../../config/yaml/#{filename}")
       @user_config_filepath = File.join(Path.home, ".config/colorls/#{filename}")
     end
 
@@ -14,7 +14,7 @@ module Colorls
         yaml = yaml.merge(user_config_yaml)
       end
       return yaml
-      #TODO
+      # :TODO: - but need to understand why this is here..
       #return yaml unless aliase
       #yaml.to_a.map! { |k, v| v.includes?('#') ? [k, v] : [k, v.to_sym] }.to_h
     end

@@ -246,7 +246,7 @@ module Colorls
     def add_help_option(opts)
       opts.separator ""
       # Crystal OptionParser has no #on_tail method, so make sure this is last.
-      opts.on("--help", "prints this help") { puts "show_help()..." }
+      opts.on("--help", "prints this help") { puts "TODO: show_help()..." }
     end
 
     def show_examples

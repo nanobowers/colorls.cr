@@ -29,19 +29,18 @@ This has only been tested with Crystal 1.0.0 w/ LLVM 10.0.  YMMV.
 
 compile with:
 ```
-crystal build --release src/colorls.cr
+shards install
+shards build
 ```
 
 then:
 ```
-./colorls
-./colorls -l
-./colorls -1
+./bin/colorls
+./bin/colorls -l
+./bin/colorls -1
 ```
 
 ## Development
-
-Currently there are no shard dependencies, everything comes from the stdlib.
 
 Test with
 ```
@@ -50,16 +49,20 @@ crystal spec
 
 Build with
 ```
-crystal build src/colorls.cr
+shards build
 ```
 
 ## TODO
-- Some tests from the Ruby version were ported, others have not (yet).
-- Some functionality from the original version is known to not work or have been tested.
-- All the special encoding features in the Ruby version dont exist here.
-- Wide-unicode chars may not have surrounding formatting computed appropriately
-- Movement of the binary with respect to the /lib directory containing the yaml config files probably will cause issues
-- Need more tests
+- [ ] Some tests from the Ruby version were ported, others have not (yet).
+- [ ] Some functionality from the original version is known to not work or have been tested.
+- [ ] All the special encoding features in the Ruby version dont exist here.  Maybe unnecessary
+- [x] Wide-unicode chars may not have surrounding formatting computed appropriately
+- [ ] Movement of the binary with respect to the `/config` directory containing the yaml config files probably will cause issues.
+- Known broken:
+   - [ ] --help is broken (but -h as a singular given option is ok)
+   - [ ] Clubbing together cmdline options doesnt work.  Will need to use another cmdline option parser to make this happen.
+   - [ ] number-of-hardlinks always prints as `0`
+- Need lots more tests
 
 ## Contributing
 
