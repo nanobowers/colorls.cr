@@ -1,23 +1,32 @@
 # frozen_string_literal: false
 
-require 'spec_helper'
+require "../spec_helper"
+require "../../src/colorls"
 
-RSpec.describe ColorLS::Core do
-  subject { described_class.new(colors: Hash.new('black')) }
+include Colorls
 
-  context 'ls' do
-    it 'works with Unicode characters' do
-      camera = 'Cámara'.force_encoding(ColorLS.file_encoding)
-      imagenes = 'Imágenes'.force_encoding(ColorLS.file_encoding)
+describe Colorls::Core do
+  blackhash = Hash(String,String).new("black")
+  subject = Core.new(all: false, sort: false, show: false,
+                     mode: DisplayMode::OnePerLine , git_status: false, almost_all: false,
+                     colors: blackhash, group: GroupBy::Files, reverse: false,
+                     hyperlink: false, tree_depth: 1, show_group: false,
+                     show_user: false )
+  
+  context "ls" do
+    
+    it "works with Unicode characters" do
+      camera = "Cámara"
+      imagenes = "Imágenes"
 
       dir_info = instance_double(
-        'FileInfo',
-        group: 'sys',
-        mtime: Time.now,
+        "FileInfo",
+        group: "sys",
+        mtime: Time.local,
         directory?: true,
-        owner: 'user',
+        owner: "user",
         name: imagenes,
-        path: '.',
+        path: ".",
         show: imagenes,
         nlink: 1,
         size: 128,
@@ -25,21 +34,21 @@ RSpec.describe ColorLS::Core do
         chardev?: false,
         socket?: false,
         symlink?: false,
-        stats: OpenStruct.new(
+        stats: { 
           mode: 0o444, # read for user, owner, other
           setuid?: false,
           setgid?: false,
           sticky?: false
-        ),
+        },
         executable?: true
       )
 
       file_info = instance_double(
-        'FileInfo',
-        group: 'sys',
+        "FileInfo",
+        group: "sys",
         mtime: Time.now,
         directory?: false,
-        owner: 'user',
+        owner: "user",
         name: camera,
         show: camera,
         nlink: 1,
@@ -48,31 +57,31 @@ RSpec.describe ColorLS::Core do
         chardev?: false,
         socket?: false,
         symlink?: false,
-        stats: OpenStruct.new(
+        stats: {
           mode: 0o444, # read for user, owner, other
           setuid?: false,
           setgid?: false,
           sticky?: false
-        ),
+        },
         executable?: false
       )
 
       allow(::Dir).to receive(:entries).and_return([camera])
 
-      allow(ColorLS::FileInfo).to receive(:new).and_return(file_info)
+      allow(Colorls::FileInfo).to receive(:new).and_return(file_info)
 
       expect { subject.ls_dir(dir_info) }.to output(/mara/).to_stdout
     end
 
-    it 'works for `...`' do
+    it "works for `...`" do
       file_info = instance_double(
-        'FileInfo',
-        group: 'sys',
+        "FileInfo",
+        group: "sys",
         mtime: Time.now,
         directory?: false,
-        owner: 'user',
-        name: '...',
-        show: '...',
+        owner: "user",
+        name: "...",
+        show: "...",
         nlink: 1,
         size: 128,
         blockdev?: false,
