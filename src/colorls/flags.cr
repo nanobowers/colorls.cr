@@ -44,10 +44,10 @@ module Colorls
 
     #@sort : SortBy
     @parser : OptionParser
-    @reverse : Bool
-    
-    def initialize(args : Array(String) )
-      @args = args
+
+
+    def initialize(@args : Array(String) )
+
       @light_colors = false
 
       @show = Show::All
@@ -63,6 +63,7 @@ module Colorls
       @show_user = true
 
       @show_report = false
+      @display_help_message = false
       @exit_status_code = 0
 
       @parser = mk_parser
@@ -77,10 +78,8 @@ module Colorls
     end
 
     def process
-      init_locale
-
+      #init_locale
       @args = ["."] if @args.empty? # ls the current directory
-
       process_args
     end
 
@@ -101,13 +100,13 @@ module Colorls
 
     
 
-    # private
-    def init_locale
-      # initialize locale from environment
-      #CLocale.setlocale(CLocale::LC_COLLATE, "")
-    rescue e : RuntimeError
-      STDERR.puts "WARN: #{e}, check your locale settings"
-    end
+    ## private
+    #def init_locale
+    #  # initialize locale from environment
+    #  #CLocale.setlocale(CLocale::LC_COLLATE, "")
+    #rescue e : RuntimeError
+    #  STDERR.puts "WARN: #{e}, check your locale settings"
+    #end
 
     def group_files_and_directories
       infos = @args.flat_map do |arg|
@@ -116,20 +115,15 @@ module Colorls
         STDERR.puts "#{arg}: #{e}".colorize(:red)
         @exit_status_code = 2
         [] of FileInfo
-#      rescue Errno::ENOENT
-#        STDERR.puts "colorls: Specified path '#{arg}' doesn't exist.".colorize(:red)
-#        @exit_status_code = 2
-#        [] of String
-#      rescue e : RuntimeError # SystemCallError 
-#        STDERR.puts "#{path}: #{e}".colorize(:red)
-#        @exit_status_code = 2
-#        [] of String
+      rescue File::NotFoundError
+        STDERR.puts "colorls: Specified path '#{arg}' doesn't exist.".colorize(:red)
+        @exit_status_code = 2
+        [] of FileInfo
       end
       infos.partition { |i| i.directory? }
     end
 
     def process_args
-      #core = Core.new(**@opts)
       core = Core.new(@hidden, @sort, @show, @mode, @git_status, @colors, @group, @reverse, @hyperlink, @tree_depth, @show_group, @show_user)
       
       directories, files = group_files_and_directories
@@ -137,7 +131,6 @@ module Colorls
       core.ls_files(files) unless files.empty?
 
       directories.sort_by! do |a|
-        ##CLocale.strxfrm(a.name)
         a.name
       end.each do |dir|
         puts "\n#{dir.show}:" if @args.size > 1
@@ -231,10 +224,14 @@ module Colorls
 
       options.on(
         "--color=[WHEN]", "colorize the output: auto, always (default if omitted), never"
-        # %w[always auto never] # possible allowed cases
       ) do |word|
-        # let Rainbow decide in "auto" mode
-        Colorize.enabled = (word != "never") unless word == "auto"
+        case word
+        when "always" then Colorize.enabled = true
+        when "never" then Colorize.enabled = false
+        when "auto" then Colorize.enabled = STDOUT.tty?
+        else
+          raise ArgumentError.new("--color must be one of [always auto never]")
+        end
       end
       options.on("--light", "use light color scheme") { @light_colors = true }
       options.on("--dark", "use dark color scheme") { @light_colors = false }
@@ -257,7 +254,7 @@ module Colorls
     def add_help_option(opts)
       opts.separator ""
       # Crystal OptionParser has no #on_tail method, so make sure this is last.
-      opts.on("--help", "prints this help") { puts "TODO: show_help()..." }
+      opts.on("--help", "prints this help") { @display_help_message = true }
     end
 
     def show_examples
@@ -314,6 +311,7 @@ EXAMPLES
       # show help and exit if the only argument is -h
       show_help if !@args.empty? && @args.all?("-h")
       @parser.parse(@args)
+      show_help if @display_help_message # via --help
       set_color_opts
     rescue e : OptionParser::Exception
       STDERR.puts "colorls: #{e}\nSee \"colorls --help\"."

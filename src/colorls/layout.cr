@@ -9,16 +9,23 @@ module Colorls
     def each_line
       return if @contents.empty?
       self.get_chunks(chunk_size).each { |line|
-
-        ## compact_line = line.compact
-        # TODO: previously we had nils in our list, which we compacted
-        # but now we use FileInfo with empty names so we have to compact them out by
-        # rejecting them.
-        compact_line = line.reject { |x| x.name == "" }
-        yield(compact_line, @max_widths)
+        yield(compact_line(line), @max_widths)
       }
     end
 
+    # Previously we had nils in our list, which we compacted
+    # but now we use FileInfo with empty names (or Strings in the case of the unit-tests)
+    # so we have to compact them out by rejecting them.
+    # note we're using diff functions for String vs FileInfo..
+
+    private def compact_line(line : Array(String))
+      line.reject { |x| x == "" }
+    end
+    
+    private def compact_line(line : Array(FileInfo))
+      line.reject { |x| x.name == "" }
+    end
+    
     private def chunk_size : Int32
       min_size = @max_widths.min
       max_chunks = [1, @screen_width / min_size].max
@@ -47,10 +54,13 @@ module Colorls
     
   end
 
+  # NOTE: Why is this templated?  Shouldn't it be done with FileInfo?
+  #  Well... the tests are setup to use String instead, so use templates here.
+  #  Perhaps this is not the best solution.
+  
   class SingleColumnLayout(T) < Layout(T)
     
     def initialize(contents : Array(T))
-
       super(contents, [1], 1)
     end
 

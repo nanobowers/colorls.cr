@@ -53,16 +53,12 @@ shards build
 ```
 
 ## TODO
-- [ ] Some tests from the Ruby version were ported, others have not (yet).
-- [ ] Some functionality from the original version is known to not work or have been tested.
-- [ ] All the special encoding features in the Ruby version dont exist here.  Maybe unnecessary
-- [x] Wide-unicode chars may not have surrounding formatting computed appropriately
-- [ ] Movement of the binary with respect to the `/config` directory containing the yaml config files probably will cause issues.
+- Some tests from the Ruby version were ported, others have not (yet).
+- All the special `encoding` features in the Ruby version dont exist here.  Maybe unnecessary
+- Movement of the binary with respect to the `/config` directory containing the yaml config files probably will cause issues.
 - Known broken:
-   - [ ] --help is broken (but -h as a singular given option is ok)
-   - [ ] Clubbing together cmdline options doesnt work.  Will need to use another cmdline option parser to make this happen.
-   - [ ] number-of-hardlinks always prints as `0`
-- Need lots more tests
+   - Clubbing together cmdline options doesnt work.  Will need to use another cmdline option parser to make this happen.
+   - Git Support (`--gs`)
 
 ## Contributing
 

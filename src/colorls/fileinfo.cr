@@ -102,13 +102,13 @@ module Colorls
     def size ; @stats.size ; end
     def mtime ; @stats.modification_time ; end
     def symlink? ; File.symlink?(@path) ; end
+
+    # note: crystal doesnt have nlink so we have to monkey-patch it in (in monkeys.cr)
+    def nlink ; @stats.nlink ; end
     
-    #def_delegators :@stats, :directory?, :socket?, :chardev?, :symlink?, :blockdev?, :mtime, :nlink, :size, :owned?,\
-    #               :executable?
+    #def_delegators  :owned?, :executable?
 
-    #private
-
-    def handle_symlink(path)
+    private def handle_symlink(path)
       @target = File.readlink(path)
       @dead = !File.exists?(path)
     rescue e : RuntimeError # SystemCallError

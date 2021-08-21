@@ -65,7 +65,21 @@ module Colorls
       @file_aliases   = Colorls::Yaml.new("file_aliases.yaml").load(aliase: true)
       @folders        = Colorls::Yaml.new("folders.yaml").load
       @folder_aliases = Colorls::Yaml.new("folder_aliases.yaml").load(aliase: true)
-      #@contents = [] of FileInfo
+    end
+
+    # Takes a directory-path, finds all files/dirs in it and returns
+    # the filtered/sorted/grouped contents
+    def get_dir_contents(path : String | Path) : Array(FileInfo)
+      dir_contents = Dir.entries(path)
+      dir_contents = filter_hidden_contents(dir_contents)
+      
+      contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
+      
+      contents = filter_contents(contents)
+      contents = sort_contents(contents)
+      contents.reverse! if @reverse
+      contents = group_contents(contents)
+      return contents
     end
     
     def ls_dir(info : FileInfo)
@@ -73,16 +87,7 @@ module Colorls
         print "\n"
         return tree_traverse(info.path, 0, 1, 2)
       end
-
-      dir_contents = Dir.entries(info.path)
-      dir_contents = filter_hidden_contents(dir_contents)
-
-      contents = dir_contents.map { |e| FileInfo.dir_entry(info.path, e, link_info: @long) }
-
-      contents = filter_contents(contents)
-      contents = sort_contents(contents)
-      contents.reverse! if @reverse
-      contents = group_contents(contents)
+      contents = get_dir_contents(info.path)
 
       return print "\n   Nothing to show here\n".colorize(@colors["empty"]) if contents.empty?
 
@@ -176,7 +181,7 @@ module Colorls
       maxlink = maxuser = maxgroup = 0
 
       contents.each do |c|
-        maxlink = 0 # c.nlink if c.nlink > maxlink
+        maxlink = c.nlink if c.nlink > maxlink
         maxuser = c.owner.size if c.owner.size > maxuser
         maxgroup = c.group.size if c.group.size > maxgroup
       end
@@ -322,7 +327,7 @@ module Colorls
 
     def long_info(content) : String
       return "" unless @long
-      numlinks = 0 # content.nlink
+      numlinks = content.nlink
       links = numlinks.to_s.rjust(@linklength)
 
       line_array = [mode_info(content.stats), links]
@@ -370,7 +375,6 @@ module Colorls
         line += " " * padding
         line += "  " + entry # entry.encode(Encoding.default_external, undef: :replace)
         padding = widths[i] - UnicodeCharWidth.width(content.show) - CHARS_PER_ITEM
-        #padding = widths[i] - content.show.size - CHARS_PER_ITEM
       end
       print line + "\n"
     end
@@ -406,38 +410,19 @@ module Colorls
       return {key, color, group}
     end
 
-    def tree_contents(path : String | Path)
+    def kill_tree_contents(path : String | Path)
       dir_contents = Dir.entries(path)
-
       dir_contents = filter_hidden_contents(dir_contents)
-
       contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
-
       filter_contents(contents) if @show
       sort_contents(contents)   if @sort
       group_contents(contents)  if @group
-
-      contents
+      return contents
     end
 
-    def get_contents(path : String | Path)
-      dir_contents = Dir.entries(path)
-
-      dir_contents = filter_hidden_contents(dir_contents)
-
-      contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
-
-      # TODO
-      #filter_contents(contents) if @show
-      #sort_contents(contents)   if @sort
-      #group_contents(contents)  if @group
-
-      contents
-    end
-    
 
     def tree_traverse(path : String | Path, prespace, depth : Int32, indent)
-      contents = tree_contents(path)
+      contents = get_dir_contents(path)
       contents.each do |content|
         icon = content == contents.last || content.directory? ? " └──" : " ├──"
         print tree_branch_preprint(prespace, indent, icon).colorize(@colors["tree"])

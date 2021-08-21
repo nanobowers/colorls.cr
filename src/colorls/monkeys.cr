@@ -1,5 +1,12 @@
 require "colorize"
 
+# Patching in nlink bc crystal doesnt have it.
+struct Crystal::System::FileInfo
+  def nlink
+    @stat.st_nlink
+  end
+end
+
 class String
   @@color_str_map =  {
     #"black": Colorize::ColorANSI::Black,
