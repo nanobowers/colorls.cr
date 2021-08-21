@@ -5,7 +5,19 @@ require "colorize"
 module Colorls
 
   alias GitStatus = Bool | Hash(String,String)
-  
+
+  enum DisplayHidden
+    None
+    All
+    AlmostAll
+  end
+
+  enum Show
+    All
+    DirsOnly
+    FilesOnly
+  end
+
   enum GroupBy
     None
     Dirs
@@ -17,6 +29,7 @@ module Colorls
     Size
     Extension
     Time
+    None
   end
 
   enum DisplayMode
@@ -29,7 +42,7 @@ module Colorls
   
   class Flags
 
-    @sort : SortBy | Bool
+    #@sort : SortBy
     @parser : OptionParser
     @reverse : Bool
     
@@ -37,13 +50,12 @@ module Colorls
       @args = args
       @light_colors = false
 
-      @show = false
-      @sort = true
+      @show = Show::All
+      @sort = SortBy::Name
       @reverse = false
       @group = GroupBy::None
       @mode = STDOUT.tty? ? DisplayMode::Vertical : DisplayMode::OnePerLine
-      @all = false
-      @almost_all = false
+      @hidden = DisplayHidden::None
       @git_status = false
       @colors = {} of String => String
       @tree_depth = 3
@@ -57,12 +69,11 @@ module Colorls
 
       parse_options
 
-      return unless @mode == DisplayMode::Tree
-
-      # FIXME: `--all` and `--tree` do not work together, use `--almost-all` instead
-      @almost_all = true if @all
-      @all = false
-      
+      # NOTE: `--all` and `--tree` do not work together or end up with
+      # a recursion issue.  Use `--almost-all` instead
+      if @mode == DisplayMode::Tree && @hidden == DisplayHidden::All
+        @hidden = DisplayHidden::AlmostAll
+      end
     end
 
     def process
@@ -119,7 +130,7 @@ module Colorls
 
     def process_args
       #core = Core.new(**@opts)
-      core = Core.new(@all, @sort, @show, @mode, @git_status, @almost_all, @colors, @group, @reverse, @hyperlink, @tree_depth, @show_group, @show_user)
+      core = Core.new(@hidden, @sort, @show, @mode, @git_status, @colors, @group, @reverse, @hyperlink, @tree_depth, @show_group, @show_user)
       
       directories, files = group_files_and_directories
 
@@ -149,7 +160,7 @@ module Colorls
       options.on("--sd", "--sort-dirs", "sort directories first") { @group = GroupBy::Dirs } # "--group-directories-first", 
       options.on("--sf", "--sort-files", "sort files first")                               { @group = GroupBy::Files }
       options.on("-t", "sort by modification time, newest first")                          { @sort = SortBy::Time }
-      options.on("-U", "do not sort; list entries in directory order")                     { @sort = false }
+      options.on("-U", "do not sort; list entries in directory order")                     { @sort = SortBy::None }
       options.on("-S", "sort by file size, largest first")                                 { @sort = SortBy::Size }
       options.on("-X", "sort by file extension")                                           { @sort = SortBy::Extension }
       options.on("--sort=WORD", "sort by WORD instead of name: none, size (-S), time (-t), extension (-X)") do |word|
@@ -158,7 +169,7 @@ module Colorls
         when "time" then @sort = SortBy::Time
         when "size" then @sort = SortBy::Size
         when "extension" then @sort = SortBy::Extension
-        when "none" then @sort = false
+        when "none" then @sort = SortBy::None
         else
           raise OptionParser::Exception.new("Error: Argument to --sort must be one of #{valid_list.inspect}")
         end
@@ -167,10 +178,10 @@ module Colorls
     end
 
     def add_common_options(options)
-      options.on("-a", "--all", "do not ignore entries starting with .")  { @all = true }
-      options.on("-A", "--almost-all", "do not list . and ..")            { @almost_all = true }
-      options.on("-d", "--dirs", "show only directories")                 { @show = GroupBy::Dirs }
-      options.on("-f", "--files", "show only files")                      { @show = GroupBy::Files }
+      options.on("-a", "--all", "do not ignore entries starting with .")  { @hidden = DisplayHidden::All }
+      options.on("-A", "--almost-all", "do not list . and ..")            { @hidden = DisplayHidden::AlmostAll }
+      options.on("-d", "--dirs", "show only directories")                 { @show = Show::DirsOnly }
+      options.on("-f", "--files", "show only files")                      { @show = Show::FilesOnly }
       options.on("--gs", "--git-status", "show git status for each file") { @git_status = true }
       options.on("--report", "show brief report")                         { @show_report = true }
     end

@@ -12,9 +12,9 @@ module Colorls
 
         ## compact_line = line.compact
         # TODO: previously we had nils in our list, which we compacted
-        # but now we use empty-strings so we have to compact them out by
+        # but now we use FileInfo with empty names so we have to compact them out by
         # rejecting them.
-        compact_line = line.reject { |x| x == "" }
+        compact_line = line.reject { |x| x.name == "" }
         yield(compact_line, @max_widths)
       }
     end

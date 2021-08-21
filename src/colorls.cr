@@ -1,5 +1,6 @@
-# TODO: Write documentation for `Colorls`
-require "uniwidth"
+#
+
+require "uniwidth" # get width of unicode characters
 
 require "./colorls/yaml"
 require "./colorls/flags"

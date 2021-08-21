@@ -37,29 +37,20 @@ module Colorls
     @file_aliases : Hash(String, String) # Hash(YAML::Any, YAML::Any)
     @tree : {mode: Bool, depth: Int32 }
     
-    def initialize(@all : Bool, @sort : Bool|SortBy, @show : Bool|GroupBy , @mode : DisplayMode, @git_status : GitStatus, @almost_all : Bool, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
+    def initialize(@hidden : DisplayHidden, @sort : SortBy, @show : Show , @mode : DisplayMode, @git_status : GitStatus, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
 
       #mode = nil, git_status = false, almost_all = false, colors = [] of String, @group = nil,
       #reverse = false, hyperlink = false, tree_depth = nil, show_group = true, show_user = true)
 
+      # TODO: convert to a struct
       @count = {} of Symbol => Int32
       @count[:folders] = 0
       @count[:recognized_files] = 0
       @count[:unrecognized_files] = 0
-      #@all          = all
-      #@almost_all   = almost_all
-      #@hyperlink    = hyperlink
-      #@sort         = sort
-      #@reverse      = reverse
-      #@group        = group
-      #@show         = show
-      #@one_per_line = mode == DisplayMode::OnePerLine
+      
       @long = (mode == DisplayMode::Long)
-      #@show_group = show_group
-      #@show_user = show_user
-
-      @tree         = {mode: mode == :tree, depth: tree_depth}
       #@horizontal   = mode == :horizontal
+      @tree         = {mode: mode == :tree, depth: tree_depth}
       @linklength = 0
       @userlength = 0
       @grouplength = 0
@@ -83,14 +74,15 @@ module Colorls
         return tree_traverse(info.path, 0, 1, 2)
       end
 
-      dir_contents = Dir.entries(info.path) #(, encoding: Colorls.file_encoding)
+      dir_contents = Dir.entries(info.path)
       dir_contents = filter_hidden_contents(dir_contents)
 
       contents = dir_contents.map { |e| FileInfo.dir_entry(info.path, e, link_info: @long) }
 
-      filter_contents(contents) if @show
-      sort_contents(contents)   if @sort
-      group_contents(contents)  if @group
+      contents = filter_contents(contents)
+      contents = sort_contents(contents)
+      contents.reverse! if @reverse
+      contents = group_contents(contents)
 
       return print "\n   Nothing to show here\n".colorize(@colors["empty"]) if contents.empty?
 
@@ -168,9 +160,14 @@ module Colorls
     end
     
     def filter_hidden_contents(contents : Array(String)) : Array(String)
-      contents -= %w[. ..] unless @all
-      contents.select! { |x| !x.starts_with? '.' } unless @all || @almost_all
-      contents
+      case @hidden
+       in DisplayHidden::All
+       contents
+       in DisplayHidden::AlmostAll
+       contents - %w[. ..]
+       in DisplayHidden::None
+       contents.reject! { |x| x.starts_with? '.' }
+      end
     end
 
     def init_column_lengths(contents)
@@ -189,40 +186,47 @@ module Colorls
       @grouplength = maxgroup
     end
 
-    def filter_contents(contents)
-      contents.select! do |x|
-        x.directory? == (@show == :dirs)
+    # Return filtered content array
+    def filter_contents(contents : Array(FileInfo)) : Array(FileInfo)
+      case @show
+           in Show::All then contents
+           in Show::DirsOnly then contents.select(&.directory?)
+           in Show::FilesOnly then contents.reject(&.directory?)
       end
     end
 
-    def sort_contents(contents)
+    # Return sorted content-array
+    def sort_contents(contents : Array(FileInfo)) : Array(FileInfo)
       case @sort
-      when SortBy::Extension
-        contents.sort_by! do |f|
+      in SortBy::Extension
+        contents.sort_by do |f|
           name = f.name
           ext = File.extname(name)
           name = name.chomp(ext) unless ext.empty?
-          [ext, name].map { |s| s } # {CLocale.strxfrm(s) }
+          [ext, name].map { |s| s }
         end
-      when SortBy::Time
-        contents.sort_by! { |a| a.mtime }
-      when SortBy::Size
-        contents.sort_by! { |a| -a.size }
-      else
-        contents.sort_by! { |a| a.name } # { |a| CLocale.strxfrm(a.name) }
+      in SortBy::Time
+        contents.sort_by { |a| a.mtime }
+      in SortBy::Size
+        contents.sort_by { |a| -a.size }
+      in SortBy::Name
+        contents.sort_by { |a| a.name }
+      in SortBy::None
+        contents
       end
-      contents.reverse! if @reverse
     end
 
-    def group_contents(contents)
-      return unless @group
-
-      dirs, files = contents.partition(&.directory?)
-
-      contents = case @group
-                  when GroupBy::Dirs then dirs + files
-                  when GroupBy::Files then files + dirs
-                  end
+    # Return grouped content-array
+    def group_contents(contents : Array(FileInfo)) : Array(FileInfo)
+      case @group
+           in GroupBy::None then contents
+           in GroupBy::Dirs
+           dirs, files = contents.partition(&.directory?)
+           dirs + files
+           in GroupBy::Files
+           dirs, files = contents.partition(&.directory?)
+           files + dirs
+      end
     end
 
 
@@ -403,7 +407,7 @@ module Colorls
     end
 
     def tree_contents(path : String | Path)
-      dir_contents = Dir.entries(path) #, encoding: Colorls.file_encoding)
+      dir_contents = Dir.entries(path)
 
       dir_contents = filter_hidden_contents(dir_contents)
 
@@ -417,7 +421,7 @@ module Colorls
     end
 
     def get_contents(path : String | Path)
-      dir_contents = Dir.entries(path) #, encoding: Colorls.file_encoding)
+      dir_contents = Dir.entries(path)
 
       dir_contents = filter_hidden_contents(dir_contents)
 
@@ -425,10 +429,9 @@ module Colorls
 
       # TODO
       #filter_contents(contents) if @show
-      #sort_contents   if @sort
-      #group_contents  if @group
+      #sort_contents(contents)   if @sort
+      #group_contents(contents)  if @group
 
-      #@contents
       contents
     end
     
