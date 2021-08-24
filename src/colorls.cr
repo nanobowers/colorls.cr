@@ -1,6 +1,7 @@
 #
 
 require "uniwidth" # get width of unicode characters
+require "term-screen" # get width of terminal screen
 
 require "./colorls/yaml"
 require "./colorls/flags"

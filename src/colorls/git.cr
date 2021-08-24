@@ -1,3 +1,4 @@
+require "./monkeys"
 # notes:
 # + Process.new with a block doesnt return a value, instead it raises if it failed?
 # + can we use libgit or something?
@@ -36,15 +37,15 @@ module Colorls
     def self.colored_status_symbols(modes, colors)
       if modes.empty?
         return "  ✓ "
-               .encode(Encoding.default_external, undef: :replace, replace: '=')
-               .colorize(colors[:unchanged])
+               #.encode(Encoding.default_external, undef: :replace, replace: '=')
+               .colorize(colors["unchanged"])
       end
 
       modes.to_a.join.uniq.delete('!').rjust(3).ljust(4)
-           .sub('?', '?'.colorize(colors[:untracked]))
-           .sub('A', 'A'.colorize(colors[:addition]))
-           .sub('M', 'M'.colorize(colors[:modification]))
-           .sub('D', 'D'.colorize(colors[:deletion]))
+           .sub('?', "?".colorize(colors["untracked"]))
+           .sub('A', "A".colorize(colors["addition"]))
+           .sub('M', "M".colorize(colors["modification"]))
+           .sub('D', "D".colorize(colors["deletion"]))
     end
 
     def self.git_prefix(repo_path : String)
@@ -57,7 +58,7 @@ module Colorls
 
     def self.git_subdir_status(repo_path : String) #: Int32
       Process.run("git",["-C", repo_path, "status", "--porcelain", "-z", "-unormal", "--ignored", "."]) do |process_id|
-        puts; p! process_id ; puts
+        ##DEBUG## puts; p! process_id ; puts
         output = process_id.output
         while (status_line = output.gets '\0')
           mode, file = status_line.chomp('\0').lstrip.split(" ", 2)

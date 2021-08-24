@@ -4,8 +4,6 @@ require "colorize"
 
 module Colorls
 
-  alias GitStatus = Bool | Hash(String,String)
-
   enum DisplayHidden
     None
     All
@@ -42,9 +40,7 @@ module Colorls
   
   class Flags
 
-    #@sort : SortBy
     @parser : OptionParser
-
 
     def initialize(@args : Array(String) )
 

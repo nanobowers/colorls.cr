@@ -2,7 +2,9 @@
 
 A port of the famous ruby `colorls` tool to Crystal.
 
-See also: [Ruby colorls](https://github.com/athityakumar/colorls)
+See also: 
++ [Ruby colorls](https://github.com/athityakumar/colorls)
++ [scalals](https://github.com/avdv/scalals)
 
 ## Motivation
 
@@ -52,13 +54,23 @@ Build with
 shards build
 ```
 
-## TODO
-- Some tests from the Ruby version were ported, others have not (yet).
-- All the special `encoding` features in the Ruby version dont exist here.  Maybe unnecessary
-- Movement of the binary with respect to the `/config` directory containing the yaml config files probably will cause issues.
-- Known broken:
-   - Clubbing together cmdline options doesnt work.  Will need to use another cmdline option parser to make this happen.
-   - Git Support (`--gs`)
+
+## TODO / Bugs Fixed, Issues Completed
+- [x] Wide unicode char support
+- [x] Printing number-of-hardlinks (thanks @blacksmoke16)
+- [x] Include Git Support (`--gs`)
+- [X] Term-width support (now using term-screen shard)
+- [ ] Port all tests from the Ruby version or build equivalent tests.
+- [ ] All the special `encoding` features in the Ruby version dont exist here.  Maybe unnecessary in Crystal?
+- [x] Movement of the binary with respect to the `/config` directory containing the yaml config files may cause issues. (FIXED?)
+
+## Known Issues
+- [ ] Clubbing together cmdline options doesn't work.  Will need to use another cmdline option parser to make this happen.
+- [ ] Colors do not display the same as the Ruby version because of difference in how x11 colors map to RGB values vs. the 256 color palette.
+
+## Long Term Goals
+- [ ] Support for `LS_COLORS` environment variable
+- [ ] Support for [`NO_COLOR`](https://no-color.org/)
 
 ## Contributing
 

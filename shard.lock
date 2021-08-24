@@ -1,5 +1,9 @@
 version: 2.0
 shards:
+  term-screen:
+    git: https://github.com/crystal-term/screen.git
+    version: 0.1.0+git.commit.96a06e1ee015e38013822dc31288a46d35056ed2
+
   textseg:
     git: https://github.com/naqvis/uni_text_seg.git
     version: 0.1.2

@@ -11,6 +11,8 @@ targets:
 dependencies:
   uniwidth:
     github: naqvis/uni_char_width
+  term-screen:
+    github: crystal-term/screen
     
 crystal: 1.0.0
 

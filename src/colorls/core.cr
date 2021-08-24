@@ -1,33 +1,40 @@
 require "uri"
 require "./monkeys"
+require "./git"
 
 module Colorls
 
-  # on Windows (were the special 'nul' device exists) we need to use UTF-8
-  @@file_encoding = File.exists?("nul") ? "UTF_8" : "ASCII_8BIT"
-
-  def self.file_encoding
-    @@file_encoding
+  class GitStatus
+    getter :enabled
+    def initialize(@enabled : Bool)
+      @hash = {} of String => Hash(String, Set(String))?
+    end
+    
+    def [](key : FileInfo)
+      path = File.expand_path key.parent
+      if @hash.has_key? path
+        @hash[path]
+      else
+        @hash[path] = Git.status(path)
+      end
+    end
+    
   end
 
-  def self.terminal_width : Int32
-    console = IO.console
+#  # on Windows (were the special 'nul' device exists) we need to use UTF-8
+#  @@file_encoding = File.exists?("nul") ? "UTF_8" : "ASCII_8BIT"
+#  def self.file_encoding
+#    @@file_encoding
+#  end
 
-    width = IO.console_size[1]
 
-    return width if console.nil? || console.winsize[1].zero?
 
-    console.winsize[1]
-  end
-
-  # terminal_width
-  # TODO: get the width-info from the TTY
-  @@screen_width : Int32
-  @@screen_width = 100 
-
+  # Get the width-info from the TTY and save it as a class var.
+  @@screen_width : Int32 = Term::Screen.width
   def self.screen_width
     @@screen_width
   end
+
 
   class Core
     @long : Bool
@@ -35,12 +42,8 @@ module Colorls
     @folders : Hash(String, String) # Hash(YAML::Any, YAML::Any)
     @folder_aliases : Hash(String, String) # Hash(YAML::Any, YAML::Any)
     @file_aliases : Hash(String, String) # Hash(YAML::Any, YAML::Any)
-    @tree : {mode: Bool, depth: Int32 }
     
-    def initialize(@hidden : DisplayHidden, @sort : SortBy, @show : Show , @mode : DisplayMode, @git_status : GitStatus, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
-
-      #mode = nil, git_status = false, almost_all = false, colors = [] of String, @group = nil,
-      #reverse = false, hyperlink = false, tree_depth = nil, show_group = true, show_user = true)
+    def initialize(@hidden : DisplayHidden, @sort : SortBy, @show : Show , @mode : DisplayMode, git_status_enable : Bool, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
 
       # TODO: convert to a struct
       @count = {} of Symbol => Int32
@@ -49,12 +52,10 @@ module Colorls
       @count[:unrecognized_files] = 0
       
       @long = (mode == DisplayMode::Long)
-      #@horizontal   = mode == :horizontal
-      @tree         = {mode: mode == :tree, depth: tree_depth}
       @linklength = 0
       @userlength = 0
       @grouplength = 0
-      @git_status   = init_git_status(@git_status)
+      @git_status = GitStatus.new(git_status_enable)
 
       @colors  = colors
       @modes = Hash(String, String).new
@@ -137,13 +138,12 @@ module Colorls
     end
 
 
-    private def init_git_status(show_git)
-      emptyreturn = {} of String => String
-      return emptyreturn unless show_git
-
+#    private def init_git_status(show_git)
+#      gitmap = {} of String => String
+#      return gitmap unless show_git
+#
       # stores git status information per directory
-#TODO
-#      Hash(??,??.new do |hash, key|
+#      Hash(??,??).new do |hash, key|
 #        path = File.absolute_path key.parent
 #        if hash.key? path
 #          hash[path]
@@ -151,8 +151,8 @@ module Colorls
 #          hash[path] = Git.status(path)
 #        end
 #      end
-      return emptyreturn
-    end
+#      return gitmap
+#    end
 
 
     # how much characters an item occupies besides its name
@@ -294,9 +294,13 @@ module Colorls
       mtime.colorize(@colors["no_modifier"]).to_s
     end
 
-    def git_info(content): String
-      return "" #TODO unless (status = @git_status[content])
-
+    def git_info(content : FileInfo): String
+      # bail early if disabled
+      return "" unless @git_status.enabled
+      status = @git_status[content]
+      # also bail early if nil (not a git-dir)
+      return "" if status.nil?
+      
       if content.directory?
         git_dir_info(content, status)
       else
@@ -305,15 +309,17 @@ module Colorls
     end
 
     def git_file_info(status) : String
-      return Git.colored_status_symbols(status, @colors) if status
-      "  ✓ "
-        #.encode(Encoding.default_external, undef: :replace, replace: '=')
-        .colorize(@colors["unchanged"])
+      rval = if status
+               Git.colored_status_symbols(status, @colors)
+             else
+               "  ✓ ".colorize(@colors["unchanged"])
+             end
+      rval.to_s
     end
 
     def git_dir_info(content, status) : String
       modes = if content.path == '.'
-                Set.new(status.values).flatten
+                status.values # status should be a set..
               else
                 status[content.name]
               end
@@ -321,7 +327,7 @@ module Colorls
       if modes.empty? && Dir.empty?(content.path)
         "    "
       else
-        Git.colored_status_symbols(modes, @colors)
+        Git.colored_status_symbols(modes, @colors).to_s
       end
     end
 
@@ -385,8 +391,9 @@ module Colorls
                   when file.blockdev?   then "blockdev"
                   when file.socket?     then "socket"
                   when file.executable? then "executable_file"
+                  when key == "file"   then  "unrecognized_file"
                   when @files.has_key?(key) then "recognized_file"
-                  else                       "unrecognized_file"
+                  else "unrecognized_file"
                   end
       @colors[color_key]
     end
@@ -400,26 +407,17 @@ module Colorls
         color = @colors["dir"]
         group = :folders
       else
-        key = File.extname(content.name).sub(/^./, "").downcase
+        # "file" is the unrecognized value
+        key = File.extname(content.name).sub(/^\./, "").downcase
         unless @files.has_key? key
           key = @file_aliases[key]? || "file"
         end
         color = file_color(content, key)
-        group = @files.has_key?(key) ? :recognized_files : :unrecognized_files
+        group = key == "file" ? :unrecognized_files : :recognized_files
       end
+      
       return {key, color, group}
     end
-
-    def kill_tree_contents(path : String | Path)
-      dir_contents = Dir.entries(path)
-      dir_contents = filter_hidden_contents(dir_contents)
-      contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
-      filter_contents(contents) if @show
-      sort_contents(contents)   if @sort
-      group_contents(contents)  if @group
-      return contents
-    end
-
 
     def tree_traverse(path : String | Path, prespace, depth : Int32, indent)
       contents = get_dir_contents(path)
@@ -434,12 +432,11 @@ module Colorls
     end
 
     def keep_going(depth)
-      @tree[:depth].nil? || depth < @tree[:depth]
+      depth < @tree_depth
     end
 
     def tree_branch_preprint(prespace, indent, prespace_icon)
       return prespace_icon if prespace.zero?
-
       " │ " * (prespace/indent).to_i + prespace_icon + "─" * indent
     end
 
