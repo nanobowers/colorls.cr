@@ -172,8 +172,10 @@ class String
     "greenyellow":       Colorize::ColorRGB.new(173, 255, 47),
   }
 
-  # take x11 color as a string name and call Object#colorize(Colorize::Color)
+  # Take x11 color as a string name and call Object#colorize(Colorize::Color)
+  # empty string color returns an uncolored string.
   def colorize(color : String)
+    return self if color.empty?
     colorize_color = @@color_str_map[color]? || Colorize::ColorANSI::Default
     self.colorize(colorize_color)
   end

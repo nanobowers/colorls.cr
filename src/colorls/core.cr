@@ -36,6 +36,12 @@ module Colorls
     @@screen_width
   end
 
+  enum ReportCategory
+    Folders
+    RecognizedFiles
+    UnrecognizedFiles
+  end
+
   class Core
     @long : Bool
     @files : Hash(String, String)          # Hash(YAML::Any, YAML::Any)
@@ -44,11 +50,11 @@ module Colorls
     @file_aliases : Hash(String, String)   # Hash(YAML::Any, YAML::Any)
 
     def initialize(@hidden : DisplayHidden, @sort : SortBy, @show : Show, @mode : DisplayMode, git_status_enable : Bool, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
-      # TODO: convert to a struct
-      @count = {} of Symbol => Int32
-      @count[:folders] = 0
-      @count[:recognized_files] = 0
-      @count[:unrecognized_files] = 0
+      @count = {
+        ReportCategory::Folders           => 0,
+        ReportCategory::RecognizedFiles   => 0,
+        ReportCategory::UnrecognizedFiles => 0,
+      } of ReportCategory => Int32
 
       @long = (mode == DisplayMode::Long)
       @linklength = 0
@@ -88,8 +94,8 @@ module Colorls
         return tree_traverse(info.path, 0, 1, 2)
       end
       contents = get_dir_contents(info.path)
-
-      return print "\n   Nothing to show here\n".colorize(@colors["empty"]) if contents.empty?
+      empty_color = @colors.fetch("empty", "")
+      return print "\n   Nothing to show here\n".colorize(empty_color) if contents.empty?
 
       ls(contents)
     end
@@ -99,12 +105,13 @@ module Colorls
     end
 
     def display_report
-      print "\n   Found #{@count.values.sum} items in total.".colorize(@colors["report"])
+      report_color = @colors.fetch("report", "")
+      print "\n   Found #{@count.values.sum} items in total.".colorize(report_color)
 
-      puts "\n\n\tFolders\t\t\t: #{@count[:folders]}" \
-           "\n\tRecognized files\t: #{@count[:recognized_files]}" \
-           "\n\tUnrecognized files\t: #{@count[:unrecognized_files]}"
-        .colorize(@colors["report"])
+      puts "\n\n\tFolders\t\t\t: #{@count[ReportCategory::Folders]}" \
+           "\n\tRecognized files\t: #{@count[ReportCategory::RecognizedFiles]}" \
+           "\n\tUnrecognized files\t: #{@count[ReportCategory::UnrecognizedFiles]}"
+        .colorize(report_color)
     end
 
     private def ls(contents)
@@ -131,7 +138,7 @@ module Colorls
                    when '-'                     then "no_access"
                    when 'x', 's', 'S', 't', 'T' then "exec"
                    end
-        modecolor = colors[filemode]
+        modecolor = colors.fetch(filemode, "")
         @modes[key.to_s] = key.to_s.colorize(modecolor).to_s
       end
     end
@@ -232,6 +239,8 @@ module Colorls
       end
     end
 
+    # Format dir-mode as something like "rwx", "r-x" or "-w-" for use
+    # with a long-listing
     def format_mode(read, write, execute, special, char)
       m_r = read ? "r" : "-"
       m_w = write ? "w" : "-"
@@ -251,28 +260,34 @@ module Colorls
         format_mode(prm.other_read?, prm.other_write?, prm.other_execute?, fileinfo.flags.sticky?, 't')
     end
 
+    # Colorize and justify the user-name
     def user_info(content) : String
-      content.owner.ljust(@userlength, ' ').colorize(@colors["user"]).to_s
+      user_color = @colors.fetch("user", "")
+      content.owner.ljust(@userlength, ' ').colorize(user_color).to_s
     end
 
+    # Colorize and justify the group-name
     def group_info(group) : String
-      group.to_s.ljust(@grouplength, ' ').colorize(@colors["normal"]).to_s
+      group_color = @colors.fetch("normal", "")
+      group.to_s.ljust(@grouplength, ' ').colorize(group_color).to_s
     end
 
+    # Colorize and justify the stringified file-size
     def size_info(filesize) : String
       size = Format.filesize_string(filesize)
-      return size.colorize(@colors["file_large"]).to_s if filesize >= FILE_LARGE_THRESHOLD
-      return size.colorize(@colors["file_medium"]).to_s if filesize >= FILE_MEDIUM_THRESHOLD
-      size.colorize(@colors["file_small"]).to_s
+      return size.colorize(@colors.fetch("file_large", "")).to_s if filesize >= FILE_LARGE_THRESHOLD
+      return size.colorize(@colors.fetch("file_medium", "")).to_s if filesize >= FILE_MEDIUM_THRESHOLD
+      size.colorize(@colors.fetch("file_small", "")).to_s
     end
 
+    # Format, colorize and justify the file-modify-time
     def mtime_info(file_mtime) : String
       fmt = Time::Format.new("%c")
-      mtime = fmt.format(file_mtime) # was... file_mtime.asctime
+      mtime = fmt.format(file_mtime)
       delta = Time.local - file_mtime
-      return mtime.colorize(@colors["hour_old"]).to_s if delta < 1.hour
-      return mtime.colorize(@colors["day_old"]).to_s if delta < 1.day
-      mtime.colorize(@colors["no_modifier"]).to_s
+      return mtime.colorize(@colors.fetch("hour_old", "")).to_s if delta < 1.hour
+      return mtime.colorize(@colors.fetch("day_old", "")).to_s if delta < 1.day
+      mtime.colorize(@colors.fetch("no_modifier", "")).to_s
     end
 
     def git_info(content : FileInfo) : String
@@ -293,7 +308,7 @@ module Colorls
       rval = if status
                Git.colored_status_symbols(status, @colors)
              else
-               "  ✓ ".colorize(@colors["unchanged"])
+               "  ✓ ".colorize(@colors.fetch("unchanged", ""))
              end
       rval.to_s
     end
@@ -312,6 +327,7 @@ module Colorls
       end
     end
 
+    # Concatenate mode, links, user, group, and size.
     def long_info(content) : String
       return "" unless @long
       numlinks = content.nlink
@@ -330,9 +346,9 @@ module Colorls
       target = content.link_target.nil? ? "…" : content.link_target
       link_info = " ⇒ #{target}"
       if content.dead?
-        "#{link_info} [Dead link]".colorize(@colors["dead_link"])
+        "#{link_info} [Dead link]".colorize(@colors.fetch("dead_link", ""))
       else
-        link_info.colorize(@colors["link"])
+        link_info.colorize(@colors.fetch("link", ""))
       end
     end
 
@@ -340,9 +356,9 @@ module Colorls
       str # str.encode(Encoding.default_external, undef: :replace, replace: "")
     end
 
-    def fetch_string(content : FileInfo, key, color, increment : Symbol)
+    def fetch_string(content : FileInfo, key, color, increment : ReportCategory) : String
       @count[increment] += 1
-      value = (increment == :folders) ? @folders[key]? : @files[key]?
+      value = (increment == ReportCategory::Folders) ? @folders[key]? : @files[key]?
       # convert unicode "\uXXXX" expressions into characters
       logo = value.to_s.gsub(/\\u[\da-f]{4}/i) { |m| m[-4..-1].to_i(16).chr }
       name = content.show
@@ -376,25 +392,25 @@ module Colorls
                   when @files.has_key?(key) then "recognized_file"
                   else                           "unrecognized_file"
                   end
-      @colors[color_key]
+      @colors.fetch(color_key, "")
     end
 
-    def options(content : FileInfo) : {String, String, Symbol}
+    def options(content : FileInfo) : {String, String, ReportCategory}
       if content.directory?
         key = content.name.downcase
         unless @folders.has_key? key
-          key = @folder_aliases[key]? || "folder"
+          key = @folder_aliases.fetch(key, "folder")
         end
-        color = @colors["dir"]
-        group = :folders
+        color = @colors.fetch("dir", "")
+        group = ReportCategory::Folders
       else
         # "file" is the unrecognized value
         key = File.extname(content.name).sub(/^\./, "").downcase
         unless @files.has_key? key
-          key = @file_aliases[key]? || "file"
+          key = @file_aliases.fetch(key, "file")
         end
         color = file_color(content, key)
-        group = key == "file" ? :unrecognized_files : :recognized_files
+        group = key == "file" ? ReportCategory::UnrecognizedFiles : ReportCategory::RecognizedFiles
       end
 
       return {key, color, group}
@@ -404,8 +420,9 @@ module Colorls
       contents = get_dir_contents(path)
       contents.each do |content|
         icon = content == contents.last || content.directory? ? " └──" : " ├──"
-        print tree_branch_preprint(prespace, indent, icon).colorize(@colors["tree"])
-        print " #{fetch_string(content, *options(content))} \n"
+        treecolor = @colors.fetch("tree", "")
+        print tree_branch_preprint(prespace, indent, icon).colorize(treecolor)
+        print " " + fetch_string(content, *options(content)) + " \n"
         next unless content.directory?
 
         tree_traverse("#{path}/#{content.name}", prespace + indent, depth + 1, indent) if keep_going(depth)

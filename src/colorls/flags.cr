@@ -200,6 +200,9 @@ module Colorls
         end
       end
 
+      # Forcibly disable using $NO_COLOR (www.no-color.org)
+      Colorize.enabled = false if ENV.has_key?("NO_COLOR")
+
       parser.opt(:light, "use light color scheme", short: nil) { @light_colors = true }
       parser.opt(:dark, "use dark color scheme", short: nil) { @light_colors = false }
       parser.opt(:hyperlink, "create hyperlinks", short: nil) { @hyperlink = true }
@@ -265,7 +268,7 @@ EXAMPLES
       show_help if !@args.empty? && @args.all?("-h")
       @parser.parse(@args)
       show_help if @display_help_message # via --help
-      set_color_opts
+      set_color_opts if Colorize.enabled?
     rescue ex : Optimist::CommandlineError
       STDERR.puts "colorls: #{ex}\nSee \"colorls --help\"."
       exit 2

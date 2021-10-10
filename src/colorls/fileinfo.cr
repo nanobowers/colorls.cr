@@ -69,6 +69,7 @@ module Colorls
       user = System::User.find_by(id: owner_id)
       @@users[owner_id] = user.username # sometimes user.name is the empty-string??
 
+
     rescue System::User::NotFoundError
       @stats.owner_id.to_s
     end
