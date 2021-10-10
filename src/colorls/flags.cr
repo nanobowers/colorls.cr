@@ -1,9 +1,9 @@
 require "option_parser"
 require "colorize"
-#require "colorls/version"
+
+# require "colorls/version"
 
 module Colorls
-
   enum DisplayHidden
     None
     All
@@ -21,7 +21,7 @@ module Colorls
     Dirs
     Files
   end
-  
+
   enum SortBy
     Name
     Size
@@ -37,35 +37,31 @@ module Colorls
     Tree
     OnePerLine
   end
-  
-  class Flags
 
+  class Flags
     @parser : Optimist::Parser
 
-    def initialize(@args : Array(String) )
-
-      @light_colors = false
-
-      @show = Show::All
-      @sort = SortBy::Name
-      @reverse = false
-      @group = GroupBy::None
-      @mode = STDOUT.tty? ? DisplayMode::Vertical : DisplayMode::OnePerLine
-      @hidden = DisplayHidden::None
-      @git_status = false
+    def initialize(@args : Array(String))
       @colors = {} of String => String
-      @tree_depth = 3
-      @hyperlink = false
-      @show_group = true
-      @show_user = true
-
-      @show_report = false
       @display_help_message = false
       @exit_status_code = 0
+      @git_status = false
+      @group = GroupBy::None
+      @hidden = DisplayHidden::None
+      @hyperlink = false
+      @light_colors = false
+      @mode = STDOUT.tty? ? DisplayMode::Vertical : DisplayMode::OnePerLine
+      @reverse = false
+      @show = Show::All
+      @show_group = true
+      @show_report = false
+      @show_user = true
+      @sort = SortBy::Name
+      @tree_depth = 3
 
       @parser = mk_parser
 
-      parse_options 
+      parse_options
 
       # NOTE: `--all` and `--tree` do not work together or end up with
       # a recursion issue.  Use `--almost-all` instead
@@ -96,7 +92,7 @@ module Colorls
 
     def process_args
       core = Core.new(@hidden, @sort, @show, @mode, @git_status, @colors, @group, @reverse, @hyperlink, @tree_depth, @show_group, @show_user)
-      
+
       directories, files = group_files_and_directories
 
       core.ls_files(files) unless files.empty?
@@ -116,22 +112,22 @@ module Colorls
     end
 
     def add_common_options(parser)
-      parser.opt( :all, "do not ignore entries starting with .", short: 'a') { @hidden = DisplayHidden::All }
-      parser.opt( :almost_all, "do not list . and ..", short: 'A') {  @hidden = DisplayHidden::AlmostAll }
-      parser.opt( :dirs, "show only directories", short: 'd') { @show = Show::DirsOnly }
-      parser.opt( :files, "show only files", short: 'f') { @show = Show::FilesOnly }
-      parser.opt( :git_status, "show git status for each file", alt: "gs") {  @git_status = true  }
-      parser.opt( :report, "show brief report" ) {  @show_report = true  }
+      parser.opt(:all, "do not ignore entries starting with .", short: 'a') { @hidden = DisplayHidden::All }
+      parser.opt(:almost_all, "do not list . and ..", short: 'A') { @hidden = DisplayHidden::AlmostAll }
+      parser.opt(:dirs, "show only directories", short: 'd') { @show = Show::DirsOnly }
+      parser.opt(:files, "show only files", short: 'f') { @show = Show::FilesOnly }
+      parser.opt(:git_status, "show git status for each file", alt: "gs") { @git_status = true }
+      parser.opt(:report, "show brief report") { @show_report = true }
     end
 
     def add_format_options(parser)
       parser.opt(:format, "use format: across (-x), horizontal (-x), long (-l), single-column (-1), vertical (-C)",
-                  permitted: %w[across horizontal vertical long single-column], cls: String) do |evalopt|
+        permitted: %w[across horizontal vertical long single-column], cls: String) do |evalopt|
         case evalopt.value.as(String)
         when "across", "horizontal" then @mode = DisplayMode::Horizontal
-        when "vertical" then @mode = DisplayMode::Vertical
-        when "long" then @mode = DisplayMode::Long
-        when "single-column" then @mode = DisplayMode::OnePerLine
+        when "vertical"             then @mode = DisplayMode::Vertical
+        when "long"                 then @mode = DisplayMode::Long
+        when "single-column"        then @mode = DisplayMode::OnePerLine
         end
       end
 
@@ -141,8 +137,8 @@ module Colorls
         @tree_depth = depth = evalopt.value.as(Int32)
         @mode = DisplayMode::Tree
       end
-      parser.opt( :lines,  "list entries by lines instead of by columns", short: 'x') { @mode = DisplayMode::Horizontal }
-      parser.opt( :columns, "list entries by columns instead of by lines", short: 'C') { @mode = DisplayMode::Vertical }
+      parser.opt(:lines, "list entries by lines instead of by columns", short: 'x') { @mode = DisplayMode::Horizontal }
+      parser.opt(:columns, "list entries by columns instead of by lines", short: 'C') { @mode = DisplayMode::Vertical }
     end
 
     def add_long_style_options(parser)
@@ -156,28 +152,28 @@ module Colorls
         @show_user = false
       end
       parser.opt(:no_group, "show no group information in a long listing", short: 'G') { @show_group = false }
-      #parser.conflicts :long, :long_groupless, :long_ownerless
+      # parser.conflicts :long, :long_groupless, :long_ownerless
     end
 
     def add_sort_options(parser)
       parser.banner ""
       parser.banner "sorting options:"
       parser.banner ""
-      
-      parser.opt( :sort_dirs, "group directories first", alt: ["sd", "group-directories-first"]) { @group = GroupBy::Dirs }
-      parser.opt( :sort_files, "group files first", alt: ["sf", "group-files-first"]) { @group = GroupBy::Files }
-      
-      parser.opt( :sort_time,  "sort by modification time, newest first", short: 't') { @sort = SortBy::Time }
-      parser.opt( :unsorted, "do not sort; list entries in directory order", short: 'U') { @sort = SortBy::None }
-      parser.opt( :sort_size, "sort by file size, largest first", short: 'S') { @sort = SortBy::Size }
-      parser.opt( :sort_extension, "sort by file extension", short: 'X') { @sort = SortBy::Extension }
-      parser.opt( :sort, "sort by WORD instead of name: none, size (-S), time (-t), extension (-X)",
-                  cls: String, permitted: %w[none time size extension]) do |evalopt|
+
+      parser.opt(:sort_dirs, "group directories first", alt: ["sd", "group-directories-first"]) { @group = GroupBy::Dirs }
+      parser.opt(:sort_files, "group files first", alt: ["sf", "group-files-first"]) { @group = GroupBy::Files }
+
+      parser.opt(:sort_time, "sort by modification time, newest first", short: 't') { @sort = SortBy::Time }
+      parser.opt(:unsorted, "do not sort; list entries in directory order", short: 'U') { @sort = SortBy::None }
+      parser.opt(:sort_size, "sort by file size, largest first", short: 'S') { @sort = SortBy::Size }
+      parser.opt(:sort_extension, "sort by file extension", short: 'X') { @sort = SortBy::Extension }
+      parser.opt(:sort, "sort by WORD instead of name: none, size (-S), time (-t), extension (-X)",
+        cls: String, permitted: %w[none time size extension]) do |evalopt|
         case evalopt.value.as(String)
-        when "time" then @sort = SortBy::Time
-        when "size" then @sort = SortBy::Size
+        when "time"      then @sort = SortBy::Time
+        when "size"      then @sort = SortBy::Size
         when "extension" then @sort = SortBy::Extension
-        when "none" then @sort = SortBy::None
+        when "none"      then @sort = SortBy::None
         end
       end
       parser.opt(:reverse, "reverse order while sorting", short: 'r') { @reverse = true }
@@ -199,16 +195,15 @@ module Colorls
       parser.opt(:color, "colorize the output", permitted: %w[auto always never], default: "auto") do |evalopt|
         case evalopt.value.as(String)
         when "always" then Colorize.enabled = true
-        when "never" then Colorize.enabled = false
-        when "auto" then Colorize.enabled = STDOUT.tty?
+        when "never"  then Colorize.enabled = false
+        when "auto"   then Colorize.enabled = STDOUT.tty?
         end
       end
-      
-      parser.opt( :light, "use light color scheme", short: nil)  { @light_colors = true }
-      parser.opt( :dark, "use dark color scheme", short: nil) { @light_colors = false }
-      parser.opt( :hyperlink, "create hyperlinks", short: nil) { @hyperlink = true }
+
+      parser.opt(:light, "use light color scheme", short: nil) { @light_colors = true }
+      parser.opt(:dark, "use dark color scheme", short: nil) { @light_colors = false }
+      parser.opt(:hyperlink, "create hyperlinks", short: nil) { @hyperlink = true }
       parser.conflicts :light, :dark
-      
     end
 
     def show_help
@@ -253,7 +248,7 @@ EXAMPLES
       parser.version Colorls::VERSION
       parser.banner "Usage:  colorls [OPTION]... [FILE]..."
       parser.banner ""
-        
+
       add_common_options(parser)
       add_format_options(parser)
       add_long_style_options(parser)
@@ -261,16 +256,14 @@ EXAMPLES
       add_compatiblity_options(parser)
       add_general_options(parser)
       add_help_option(parser)
-      
+
       parser
     end
 
     def parse_options
       # show help and exit if the only argument is -h
       show_help if !@args.empty? && @args.all?("-h")
-      options = @parser.parse(@args)
-      
-      
+      @parser.parse(@args)
       show_help if @display_help_message # via --help
       set_color_opts
     rescue ex : Optimist::CommandlineError
@@ -283,7 +276,4 @@ EXAMPLES
       @colors = Colorls::Yaml.new(color_scheme_file).load(aliase: true)
     end
   end
-    
-
-  
 end

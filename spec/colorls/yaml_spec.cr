@@ -6,18 +6,16 @@ require "../support/yaml_sort_checker"
 # order
 
 describe Colorls::Yaml do
-
   filenames = {
-    file_aliases: KV::Value,
+    file_aliases:   KV::Value,
     folder_aliases: KV::Value,
-    folders: KV::Key,
-    files: KV::Key
+    folders:        KV::Key,
+    files:          KV::Key,
   }
 
   base_directory = "config/yaml"
 
   filenames.each do |filename, sort_type|
-    
     describe filename do
       it "is sorted correctly" do
         checker = YamlSortChecker.new("#{base_directory}/#{filename}.yaml")

@@ -3,16 +3,16 @@ require "./monkeys"
 require "./git"
 
 module Colorls
-
-  FILE_LARGE_THRESHOLD = (512 * 1024 ** 2)
+  FILE_LARGE_THRESHOLD  = (512 * 1024 ** 2)
   FILE_MEDIUM_THRESHOLD = (128 * 1024 ** 2)
 
   class GitStatus
     getter :enabled
+
     def initialize(@enabled : Bool)
       @hash = {} of String => Hash(String, Set(String))?
     end
-    
+
     def [](key : FileInfo)
       path = File.expand_path key.parent
       if @hash.has_key? path
@@ -21,16 +21,13 @@ module Colorls
         @hash[path] = Git.status(path)
       end
     end
-    
   end
 
-#  # on Windows (were the special 'nul' device exists) we need to use UTF-8
-#  @@file_encoding = File.exists?("nul") ? "UTF_8" : "ASCII_8BIT"
-#  def self.file_encoding
-#    @@file_encoding
-#  end
-
-
+  #  # on Windows (were the special 'nul' device exists) we need to use UTF-8
+  #  @@file_encoding = File.exists?("nul") ? "UTF_8" : "ASCII_8BIT"
+  #  def self.file_encoding
+  #    @@file_encoding
+  #  end
 
   # Get the width-info from the TTY and save it as a class var.
   @@screen_width : Int32 = Term::Screen.width
@@ -39,36 +36,34 @@ module Colorls
     @@screen_width
   end
 
-
   class Core
     @long : Bool
-    @files : Hash(String, String) # Hash(YAML::Any, YAML::Any)
-    @folders : Hash(String, String) # Hash(YAML::Any, YAML::Any)
+    @files : Hash(String, String)          # Hash(YAML::Any, YAML::Any)
+    @folders : Hash(String, String)        # Hash(YAML::Any, YAML::Any)
     @folder_aliases : Hash(String, String) # Hash(YAML::Any, YAML::Any)
-    @file_aliases : Hash(String, String) # Hash(YAML::Any, YAML::Any)
-    
-    def initialize(@hidden : DisplayHidden, @sort : SortBy, @show : Show , @mode : DisplayMode, git_status_enable : Bool, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
+    @file_aliases : Hash(String, String)   # Hash(YAML::Any, YAML::Any)
 
+    def initialize(@hidden : DisplayHidden, @sort : SortBy, @show : Show, @mode : DisplayMode, git_status_enable : Bool, @colors : Hash(String, String), @group : GroupBy, @reverse : Bool, @hyperlink : Bool?, @tree_depth : Int32, @show_group : Bool, @show_user : Bool)
       # TODO: convert to a struct
       @count = {} of Symbol => Int32
       @count[:folders] = 0
       @count[:recognized_files] = 0
       @count[:unrecognized_files] = 0
-      
+
       @long = (mode == DisplayMode::Long)
       @linklength = 0
       @userlength = 0
       @grouplength = 0
       @git_status = GitStatus.new(git_status_enable)
 
-      @colors  = colors
+      @colors = colors
       @modes = Hash(String, String).new
- 
+
       init_colors colors
 
-      @files          = Colorls::Yaml.new("files.yaml").load()
-      @file_aliases   = Colorls::Yaml.new("file_aliases.yaml").load(aliase: true)
-      @folders        = Colorls::Yaml.new("folders.yaml").load
+      @files = Colorls::Yaml.new("files.yaml").load
+      @file_aliases = Colorls::Yaml.new("file_aliases.yaml").load(aliase: true)
+      @folders = Colorls::Yaml.new("folders.yaml").load
       @folder_aliases = Colorls::Yaml.new("folder_aliases.yaml").load(aliase: true)
     end
 
@@ -77,16 +72,16 @@ module Colorls
     def get_dir_contents(path : String | Path) : Array(FileInfo)
       dir_contents = Dir.entries(path)
       dir_contents = filter_hidden_contents(dir_contents)
-      
+
       contents = dir_contents.map { |e| FileInfo.dir_entry(path, e, link_info: @long) }
-      
+
       contents = filter_contents(contents)
       contents = sort_contents(contents)
       contents.reverse! if @reverse
       contents = group_contents(contents)
       return contents
     end
-    
+
     def ls_dir(info : FileInfo)
       if @mode == DisplayMode::Tree
         print "\n"
@@ -106,9 +101,9 @@ module Colorls
     def display_report
       print "\n   Found #{@count.values.sum} items in total.".colorize(@colors["report"])
 
-      puts  "\n\n\tFolders\t\t\t: #{@count[:folders]}" \
-        "\n\tRecognized files\t: #{@count[:recognized_files]}" \
-        "\n\tUnrecognized files\t: #{@count[:unrecognized_files]}"
+      puts "\n\n\tFolders\t\t\t: #{@count[:folders]}" \
+           "\n\tRecognized files\t: #{@count[:recognized_files]}" \
+           "\n\tUnrecognized files\t: #{@count[:unrecognized_files]}"
         .colorize(@colors["report"])
     end
 
@@ -131,9 +126,9 @@ module Colorls
       # set entries in the @colors database
       "rw-xsStT".chars.each do |key|
         filemode = case key
-                   when 'r' then "read"
-                   when 'w' then "write"
-                   when '-' then "no_access"
+                   when 'r'                     then "read"
+                   when 'w'                     then "write"
+                   when '-'                     then "no_access"
                    when 'x', 's', 'S', 't', 'T' then "exec"
                    end
         modecolor = colors[filemode]
@@ -141,23 +136,21 @@ module Colorls
       end
     end
 
-
-#    private def init_git_status(show_git)
-#      gitmap = {} of String => String
-#      return gitmap unless show_git
-#
-      # stores git status information per directory
-#      Hash(??,??).new do |hash, key|
-#        path = File.absolute_path key.parent
-#        if hash.key? path
-#          hash[path]
-#        else
-#          hash[path] = Git.status(path)
-#        end
-#      end
-#      return gitmap
-#    end
-
+    #    private def init_git_status(show_git)
+    #      gitmap = {} of String => String
+    #      return gitmap unless show_git
+    #
+    # stores git status information per directory
+    #      Hash(??,??).new do |hash, key|
+    #        path = File.absolute_path key.parent
+    #        if hash.key? path
+    #          hash[path]
+    #        else
+    #          hash[path] = Git.status(path)
+    #        end
+    #      end
+    #      return gitmap
+    #    end
 
     # how much characters an item occupies besides its name
     CHARS_PER_ITEM = 12
@@ -199,8 +192,8 @@ module Colorls
     # Return filtered content array
     def filter_contents(contents : Array(FileInfo)) : Array(FileInfo)
       case @show
-      in Show::All then contents
-      in Show::DirsOnly then contents.select(&.directory?)
+      in Show::All       then contents
+      in Show::DirsOnly  then contents.select(&.directory?)
       in Show::FilesOnly then contents.reject(&.directory?)
       end
     end
@@ -239,7 +232,6 @@ module Colorls
       end
     end
 
-
     def format_mode(read, write, execute, special, char)
       m_r = read ? "r" : "-"
       m_w = write ? "w" : "-"
@@ -267,10 +259,9 @@ module Colorls
       group.to_s.ljust(@grouplength, ' ').colorize(@colors["normal"]).to_s
     end
 
-
     def size_info(filesize) : String
       size = Format.filesize_string(filesize)
-      return size.colorize(@colors["file_large"]).to_s  if filesize >= FILE_LARGE_THRESHOLD
+      return size.colorize(@colors["file_large"]).to_s if filesize >= FILE_LARGE_THRESHOLD
       return size.colorize(@colors["file_medium"]).to_s if filesize >= FILE_MEDIUM_THRESHOLD
       size.colorize(@colors["file_small"]).to_s
     end
@@ -280,17 +271,17 @@ module Colorls
       mtime = fmt.format(file_mtime) # was... file_mtime.asctime
       delta = Time.local - file_mtime
       return mtime.colorize(@colors["hour_old"]).to_s if delta < 1.hour
-      return mtime.colorize(@colors["day_old"]).to_s  if delta < 1.day
+      return mtime.colorize(@colors["day_old"]).to_s if delta < 1.day
       mtime.colorize(@colors["no_modifier"]).to_s
     end
 
-    def git_info(content : FileInfo): String
+    def git_info(content : FileInfo) : String
       # bail early if disabled
       return "" unless @git_status.enabled
       status = @git_status[content]
       # also bail early if nil (not a git-dir)
       return "" if status.nil?
-      
+
       if content.directory?
         git_dir_info(content, status)
       else
@@ -353,8 +344,8 @@ module Colorls
       @count[increment] += 1
       value = (increment == :folders) ? @folders[key]? : @files[key]?
       # convert unicode "\uXXXX" expressions into characters
-      logo  = value.to_s.gsub(/\\u[\da-f]{4}/i) { |m| m[-4..-1].to_i(16).chr }
-      name = content.show()
+      logo = value.to_s.gsub(/\\u[\da-f]{4}/i) { |m| m[-4..-1].to_i(16).chr }
+      name = content.show
       name = make_link(content) if @hyperlink
       name += content.directory? ? '/' : ' '
       entry = "#{out_encode(logo)}  #{out_encode(name)}"
@@ -377,18 +368,18 @@ module Colorls
 
     def file_color(file, key) : String
       color_key = case
-                  when file.chardev?    then "chardev"
-                  when file.blockdev?   then "blockdev"
-                  when file.socket?     then "socket"
-                  when file.executable? then "executable_file"
-                  when key == "file"   then  "unrecognized_file"
+                  when file.chardev?        then "chardev"
+                  when file.blockdev?       then "blockdev"
+                  when file.socket?         then "socket"
+                  when file.executable?     then "executable_file"
+                  when key == "file"        then "unrecognized_file"
                   when @files.has_key?(key) then "recognized_file"
-                  else "unrecognized_file"
+                  else                           "unrecognized_file"
                   end
       @colors[color_key]
     end
 
-    def options(content : FileInfo) : { String, String, Symbol }
+    def options(content : FileInfo) : {String, String, Symbol}
       if content.directory?
         key = content.name.downcase
         unless @folders.has_key? key
@@ -405,7 +396,7 @@ module Colorls
         color = file_color(content, key)
         group = key == "file" ? :unrecognized_files : :recognized_files
       end
-      
+
       return {key, color, group}
     end
 
@@ -416,7 +407,7 @@ module Colorls
         print tree_branch_preprint(prespace, indent, icon).colorize(@colors["tree"])
         print " #{fetch_string(content, *options(content))} \n"
         next unless content.directory?
-        
+
         tree_traverse("#{path}/#{content.name}", prespace + indent, depth + 1, indent) if keep_going(depth)
       end
     end
@@ -431,10 +422,9 @@ module Colorls
     end
 
     def make_link(content)
-      #uri = Addressable::URI.convert_path(File.absolute_path(content.path))
+      # uri = Addressable::URI.convert_path(File.absolute_path(content.path))
       uri = "file://" + URI.encode(File.expand_path(content.path))
       "\033]8;;#{uri}\007#{content.name}\033]8;;\007"
     end
   end
-  
 end

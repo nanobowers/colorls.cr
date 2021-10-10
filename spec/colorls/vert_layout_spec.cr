@@ -2,8 +2,8 @@ require "../spec_helper"
 require "../../src/colorls/layout"
 
 def generate_v_subject(array : Array, width : Int32)
-  subject = Colorls::VerticalLayout.new(array, array.map(&.size) , width)
-  result = [] of { Array(String), Array(Int32) }
+  subject = Colorls::VerticalLayout.new(array, array.map(&.size), width)
+  result = [] of {Array(String), Array(Int32)}
   subject.each_line do |line, maxwid|
     result << {line, maxwid}
   end
@@ -11,7 +11,6 @@ def generate_v_subject(array : Array, width : Int32)
 end
 
 describe(Colorls::VerticalLayout, "#each_line") do
-
   context "when empty" do
     it "does nothing" do
       result = generate_v_subject(array: [] of String, width: 10)
@@ -23,7 +22,7 @@ describe(Colorls::VerticalLayout, "#each_line") do
     it "is on a single line" do
       first = "1234567890"
       result = generate_v_subject(array: [first], width: 11)
-      result.should eq [ { [first], [first.size] } ]
+      result.should eq [{[first], [first.size]}]
     end
   end
 
@@ -31,7 +30,7 @@ describe(Colorls::VerticalLayout, "#each_line") do
     it "is on a single column" do
       first = "1234567890"
       result = generate_v_subject(array: [first], width: 1)
-      result.should eq [ { [first], [first.size] } ]
+      result.should eq [{[first], [first.size]}]
     end
   end
 
@@ -39,7 +38,7 @@ describe(Colorls::VerticalLayout, "#each_line") do
     it "is on a single line" do
       first = "1234567890"
       result = generate_v_subject(array: [first, "a"], width: 100)
-      result.should eq [ { [first, "a"] , [first.size, 1] } ]
+      result.should eq [{[first, "a"], [first.size, 1]}]
     end
   end
 
@@ -50,7 +49,7 @@ describe(Colorls::VerticalLayout, "#each_line") do
       width = first.size * 2
       max_widths = [first.size, first.size]
       result = generate_v_subject(array: array, width: width)
-      result.should eq [ { [first, first], max_widths}, { ["a"], max_widths } ]
+      result.should eq [{[first, first], max_widths}, {["a"], max_widths}]
     end
   end
 end
