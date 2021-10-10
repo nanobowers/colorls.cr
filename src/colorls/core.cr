@@ -4,6 +4,9 @@ require "./git"
 
 module Colorls
 
+  FILE_LARGE_THRESHOLD = (512 * 1024 ** 2)
+  FILE_MEDIUM_THRESHOLD = (128 * 1024 ** 2)
+
   class GitStatus
     getter :enabled
     def initialize(@enabled : Bool)
@@ -31,6 +34,7 @@ module Colorls
 
   # Get the width-info from the TTY and save it as a class var.
   @@screen_width : Int32 = Term::Screen.width
+
   def self.screen_width
     @@screen_width
   end
@@ -102,8 +106,8 @@ module Colorls
     def display_report
       print "\n   Found #{@count.values.sum} items in total.".colorize(@colors["report"])
 
-      puts  "\n\n\tFolders\t\t\t: #{@count[:folders]}"\
-        "\n\tRecognized files\t: #{@count[:recognized_files]}"\
+      puts  "\n\n\tFolders\t\t\t: #{@count[:folders]}" \
+        "\n\tRecognized files\t: #{@count[:recognized_files]}" \
         "\n\tUnrecognized files\t: #{@count[:unrecognized_files]}"
         .colorize(@colors["report"])
     end
@@ -163,15 +167,16 @@ module Colorls
         UnicodeCharWidth.width(item.show || "") + CHARS_PER_ITEM
       end
     end
-    
+
+    # Remove contents from an array based on hidden property
     def filter_hidden_contents(contents : Array(String)) : Array(String)
       case @hidden
-       in DisplayHidden::All
-       contents
-       in DisplayHidden::AlmostAll
-       contents - %w[. ..]
-       in DisplayHidden::None
-       contents.reject! { |x| x.starts_with? '.' }
+      in DisplayHidden::All
+        contents
+      in DisplayHidden::AlmostAll
+        contents - %w[. ..]
+      in DisplayHidden::None
+        contents.reject! { |x| x.starts_with? '.' }
       end
     end
 
@@ -194,9 +199,9 @@ module Colorls
     # Return filtered content array
     def filter_contents(contents : Array(FileInfo)) : Array(FileInfo)
       case @show
-           in Show::All then contents
-           in Show::DirsOnly then contents.select(&.directory?)
-           in Show::FilesOnly then contents.reject(&.directory?)
+      in Show::All then contents
+      in Show::DirsOnly then contents.select(&.directory?)
+      in Show::FilesOnly then contents.reject(&.directory?)
       end
     end
 
@@ -224,13 +229,13 @@ module Colorls
     # Return grouped content-array
     def group_contents(contents : Array(FileInfo)) : Array(FileInfo)
       case @group
-           in GroupBy::None then contents
-           in GroupBy::Dirs
-           dirs, files = contents.partition(&.directory?)
-           dirs + files
-           in GroupBy::Files
-           dirs, files = contents.partition(&.directory?)
-           files + dirs
+      in GroupBy::None then contents
+      in GroupBy::Dirs
+        dirs, files = contents.partition(&.directory?)
+        dirs + files
+      in GroupBy::Files
+        dirs, files = contents.partition(&.directory?)
+        files + dirs
       end
     end
 
@@ -263,34 +268,19 @@ module Colorls
     end
 
 
-    FILESIZE_PREFIXES = ["Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi"]
-    
     def size_info(filesize) : String
-      if filesize < 1024
-        numstr = filesize.to_s
-        unit = "B"
-      else
-        pos = (Math.log(filesize) / Math.log(1024)).floor.to_i64
-        numstr = ( filesize / (1024 ** pos)).floor.to_s
-        pos = FILESIZE_PREFIXES.size-1 if pos > FILESIZE_PREFIXES.size - 1
-        unit = FILESIZE_PREFIXES[pos-1] + "B"
-      end
-
-      size = "#{numstr.rjust(4,' ')} #{unit.ljust(3,' ')}"
-
-      return size.colorize(@colors["file_large"]).to_s  if filesize >= 512 * 1024 ** 2
-      return size.colorize(@colors["file_medium"]).to_s if filesize >= 128 * 1024 ** 2
+      size = Format.filesize_string(filesize)
+      return size.colorize(@colors["file_large"]).to_s  if filesize >= FILE_LARGE_THRESHOLD
+      return size.colorize(@colors["file_medium"]).to_s if filesize >= FILE_MEDIUM_THRESHOLD
       size.colorize(@colors["file_small"]).to_s
     end
 
     def mtime_info(file_mtime) : String
       fmt = Time::Format.new("%c")
       mtime = fmt.format(file_mtime) # was... file_mtime.asctime
-      now = Time.local # Time.now
-      delta = (now - file_mtime).to_i
-      return mtime.colorize(@colors["hour_old"]).to_s if delta < (60 * 60)
-      return mtime.colorize(@colors["day_old"]).to_s  if delta < (24 * 60 * 60)
-
+      delta = Time.local - file_mtime
+      return mtime.colorize(@colors["hour_old"]).to_s if delta < 1.hour
+      return mtime.colorize(@colors["day_old"]).to_s  if delta < 1.day
       mtime.colorize(@colors["no_modifier"]).to_s
     end
 
@@ -446,4 +436,5 @@ module Colorls
       "\033]8;;#{uri}\007#{content.name}\033]8;;\007"
     end
   end
+  
 end

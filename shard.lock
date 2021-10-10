@@ -1,5 +1,13 @@
 version: 2.0
 shards:
+  edits:
+    git: https://github.com/tcrouch/edits.cr.git
+    version: 0.8.0
+
+  optimist:
+    git: https://github.com/nanobowers/optimist.cr.git
+    version: 0.1.0+git.commit.2b1b4f6d73d760081683f10156de6c334df3ab79
+
   term-screen:
     git: https://github.com/crystal-term/screen.git
     version: 0.1.0+git.commit.96a06e1ee015e38013822dc31288a46d35056ed2
